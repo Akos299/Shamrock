@@ -9,8 +9,8 @@
 #pragma once
 
 /**
- * @file TimeIntegrator.hpp
- * @author Timothée David--Cléris (timothee.david--cleris@ens-lyon.fr)
+ * @file DragIntegrator.hpp
+ * @author Léodasce Sewanou (leodasce.sewanou@ens-lyon.fr)
  * @brief
  *
  */
@@ -24,7 +24,7 @@
 namespace shammodels::basegodunov::modules {
 
     template<class Tvec, class TgridVec>
-    class TimeIntegrator {
+    class DragIntegrator {
 
         public:
         using Tscal                      = shambase::VecComponent<Tvec>;
@@ -42,11 +42,11 @@ namespace shammodels::basegodunov::modules {
         Config &solver_config;
         Storage &storage;
 
-        TimeIntegrator(ShamrockCtx &context, Config &solver_config, Storage &storage)
+        DragIntegrator(ShamrockCtx &context, Config &solver_config, Storage &storage)
             : context(context), solver_config(solver_config), storage(storage) {}
 
-        void forward_euler(Tscal dt);
-        void forward_euler_with_irk1_drag(Tscal dt);
+        void involve_with_no_src(Tscal dt);
+        void enable_irk1_drag_integrator(Tscal dt);
 
         private:
         inline PatchScheduler &scheduler() { return shambase::get_check_ref(context.sched); }

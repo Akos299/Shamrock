@@ -329,4 +329,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::do_debug_vtk_dump(std::str
     writer.write_field("dtrhoe", dtrhoe, num_obj * block_size);
 }
 
+
+
 template class shammodels::basegodunov::Solver<f64_3, i64_3>;
