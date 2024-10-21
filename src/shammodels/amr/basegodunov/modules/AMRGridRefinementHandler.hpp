@@ -54,6 +54,8 @@ namespace shammodels::basegodunov::modules {
         AMRGridRefinementHandler(ShamrockCtx &context, Config &solver_config, Storage &storage)
             : context(context), solver_config(solver_config), storage(storage) {}
 
+        void compute_pseudo_gradient();
+
         void update_refinement();
 
         private:

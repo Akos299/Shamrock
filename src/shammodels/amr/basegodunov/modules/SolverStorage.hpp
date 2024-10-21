@@ -349,6 +349,9 @@ namespace shammodels::basegodunov {
         // time derivative dust momemtum
         Component<shamrock::ComputeField<Tvec>> dtrhov_dust;
 
+        //  density's pseudo-gradient
+        Component<shamrock::ComputeField<Tscal>> pseudo_gradient_rho;
+
         struct Timings {
             f64 interface = 0;
             f64 neighbors = 0;

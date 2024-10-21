@@ -77,12 +77,20 @@ namespace shammodels::basegodunov {
             Tscal crit_mass;
         };
 
-        using mode = std::variant<None, DensityBased>;
+        struct PseudoGradient {
+            Tscal error_min;
+            Tscal error_max;
+        };
+
+        using mode = std::variant<None, DensityBased, PseudoGradient>;
 
         mode config = None{};
 
         void set_refine_none() { config = None{}; }
         void set_refine_density_based(Tscal crit_mass) { config = DensityBased{crit_mass}; }
+        void set_refine_pseudo_gradient(Tscal error_min, Tscal error_max) {
+            config = PseudoGradient{error_min, error_max};
+        }
     };
 
     template<class Tvec, class TgridVec>

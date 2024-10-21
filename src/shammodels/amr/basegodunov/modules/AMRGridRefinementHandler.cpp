@@ -16,6 +16,143 @@
 #include "shammodels/amr/basegodunov/modules/AMRGridRefinementHandler.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRSortBlocks.hpp"
 
+template<class T, class Tvec, class ACCField>
+inline T get_pseudo_grad(
+    const cell_global_id,
+    const shambase::VecComponent<Tvec> delta_cell,
+    const AMRGraphLinkiterator &graph_iter_xp,
+    const AMRGraphLinkiterator &graph_iter_xm,
+    const AMRGraphLinkiterator &graph_iter_yp,
+    const AMRGraphLinkiterator &graph_iter_ym,
+    const AMRGraphLinkiterator &graph_iter_zp,
+    const AMRGraphLinkiterator &graph_iter_zm,
+    ACCField &&field_access) {
+
+    auto grad_scalar = [&](Tscal u_curr, Tscal u_neigh) {
+        Tscal max = g_sycl_max(g_sycl_abs(u_curr), g_sycl_abs(u_neigh));
+        max       = g_sycl_abs(u_curr - u_neigh) / max;
+        return g_sycl_max(g_sycl_min(max, 1.0), 0.0);
+    };
+
+    auto get_amr_grad = [&](auto &graph_links) -> T {
+        T acc   = shambase::VectorProperties<T>::get_zero();
+        u32 cnt = graph_links.for_each_object_link_cnt(cell_global_id, [&](u32 id_b) {
+            T u_cur_acc   = field_access(cell_global_id);
+            T u_neigh_acc = field_access(id_b);
+            acc           = g_sycl_max(acc, grad_scalar(u_cur_acc, u_neigh_acc));
+        });
+
+        return (cnt > 0) ? acc : shambase::VectorProperties<T>::get_zero();
+    };
+
+    T u_xp_dir = get_amr_grad(graph_iter_xp);
+    T u_xm_dir = get_amr_grad(graph_iter_xm);
+    T u_yp_dir = get_amr_grad(graph_iter_yp);
+    T u_ym_dir = get_amr_grad(graph_iter_ym);
+    T u_zp_dir = get_amr_grad(graph_iter_zp);
+    T u_zm_dir = get_amr_grad(graph_iter_zm);
+
+    T res = max_8points(
+        shambase::VectorProperties<T>::get_zero(),
+        shambase::VectorProperties<T>::get_zero(),
+        u_xp_dir,
+        u_xm_dir,
+        u_yp_dir,
+        u_ym_dir,
+        u_zp_dir,
+        u_zm_dir);
+    return res;
+}
+
+template<class Tvec, class TgridVec>
+void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
+    compute_pseudo_gradient() {
+    StackEntry stack_loc{};
+
+    using MergedPDat = shamrock::MergedPatchData;
+
+    shamrock::SchedulerUtility utility(scheduler());
+    shamrock::ComputeField<Tscal> result
+        = utility.make_compute_field<Tscal>("pseudo grad", AMRBlock::block_size, [&](u64 id) {
+              return storage.merged_patchdata_ghost.get().get(id).total_elements;
+          });
+    shamrock::patch::PatchDataLayout &ghost_layout = storage.ghost_layout.get();
+    u32 irho_ghost                                 = ghost_layout.get_field_idx<Tscal>("rho");
+
+    storage.cell_link_graph.get().for_each([&](u64 id, OrientedAMRGraph &oriented_cell_graph) {
+        MergedPDat &mpdat = storage.merged_patchdata_ghost.get().get(id);
+
+        sycl::queue &q = shamsys::instance::get_compute_queue();
+
+        sycl::buffer<TgridVec> &buf_block_min = mpdat.pdat.get_field_buf_ref<TgridVec>(0);
+        sycl::buffer<TgridVec> &buf_block_max = mpdat.pdat.get_field_buf_ref<TgridVec>(1);
+
+        sycl::buffer<Tscal> &buf_rho = mpdat.pdat.get_field_buf_ref<Tscal>(irho_ghost);
+
+        AMRGraph &graph_neigh_xp
+            = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.xp]);
+        AMRGraph &graph_neigh_xm
+            = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.xm]);
+        AMRGraph &graph_neigh_yp
+            = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.yp]);
+        AMRGraph &graph_neigh_ym
+            = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.ym]);
+        AMRGraph &graph_neigh_zp
+            = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.zp]);
+        AMRGraph &graph_neigh_zm
+            = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.zm]);
+
+        sycl::buffer<Tscal> &block_cell_sizes
+            = storage.cell_infos.get().block_cell_sizes.get_buf_check(id);
+        sycl::buffer<Tvec> &cell0block_aabb_lower
+            = storage.cell_infos.get().cell0block_aabb_lower.get_buf_check(id);
+
+        q.submit([&](sycl::handler &cgh) {
+            AMRGraphLinkiterator graph_iter_xp{graph_neigh_xp, cgh};
+            AMRGraphLinkiterator graph_iter_xm{graph_neigh_xm, cgh};
+            AMRGraphLinkiterator graph_iter_yp{graph_neigh_yp, cgh};
+            AMRGraphLinkiterator graph_iter_ym{graph_neigh_ym, cgh};
+            AMRGraphLinkiterator graph_iter_zp{graph_neigh_zp, cgh};
+            AMRGraphLinkiterator graph_iter_zm{graph_neigh_zm, cgh};
+
+            sycl::accessor acc_aabb_block_lower{cell0block_aabb_lower, cgh, sycl::read_only};
+            sycl::accessor acc_aabb_cell_size{block_cell_sizes, cgh, sycl::read_only};
+
+            sycl::accessor rho{buf_rho, cgh, sycl::read_only};
+            sycl::accessor pseudo_grad_rho{
+                shambase::get_check_ref(result.get_buf(id)), cgh, sycl::write_only, sycl::no_init};
+
+            u32 cell_count = (mpdat.total_elements) * AMRBlock::block_size;
+
+            shambase::parralel_for(cgh, cell_count, "compute_pseudo_grad_rho", [=](u64 gid) {
+                const u32 cell_global_id = (u32) gid;
+
+                const u32 block_id    = cell_global_id / AMRBlock::block_size;
+                const u32 cell_loc_id = cell_global_id % AMRBlock::block_size;
+
+                Tscal delta_cell = acc_aabb_cell_size[block_id];
+
+                auto result = get_pseudo_grad<Tscal, Tvec>(
+                    cell_global_id,
+                    delta_cell,
+                    graph_iter_xp,
+                    graph_iter_xm,
+                    graph_iter_yp,
+                    graph_iter_ym,
+                    graph_iter_zp,
+                    graph_iter_zm,
+                    [=](u32 id) {
+                        return rho[id];
+                    });
+
+                get_pseudo_grad[cell_global_id] = result;
+            });
+        });
+    });
+
+    storage.pseudo_gradient_rho.set(std::move(result));
+}
+
 template<class Tvec, class TgridVec>
 template<class UserAcc, class... T>
 void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
@@ -381,6 +518,68 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         }
     };
 
+    class RefinePseudoGradientBlock {
+        public:
+        sycl::accessor<TgridVec, 1, sycl::access::mode::read, sycl::target::device> block_low_bound;
+        sycl::accessor<TgridVec, 1, sycl::access::mode::read, sycl::target::device>
+            block_high_bound;
+        sycl::accessor<Tscal, 1, sycl::access::mode::read, sycl::target::device>
+            block_field_gradient; // For now we use dust density as field
+
+        Tscal one_over_Nside = 1. / AMRBlock::Nside;
+        Tscal dxfact;
+        Tscal error_min, error_max;
+
+        RefinePseudoGradientBlock(
+            sycl::handler &cgh,
+            u64 id_patch,
+            shamrock::patch::Patch p,
+            Tscal dxfact,
+            Tscal error_min,
+            Tscal error_max)
+            : block_low_bound{*pdat.get_field<TgridVec>(0).get_buf(), cgh, sycl::read_only},
+              block_high_bound{*pdat.get_field<TgridVec>(1).get_buf(), cgh, sycl::read_only},
+              block_field_gradient{
+                  storage.pseudo_gradient_rho.get().get_buf_check(id_patch), cgh, sycl::read_only},
+              dxfact(dxfact), error_min(error_min), error_max(error_max) {}
+
+        void refine_criterion(
+            u32 block_id, RefineCritBlock acc, bool &should_refine, bool &should_derefine) const {
+
+            TgridVec low_bound  = acc.block_low_bound[block_id];
+            TgridVec high_bound = acc.block_high_bound[block_id];
+
+            Tvec lower_flt = low_bound.template convert<Tscal>() * dxfact;
+            Tvec upper_flt = high_bound.template convert<Tscal>() * dxfact;
+
+            Tvec block_cell_size = (upper_flt - lower_flt) * one_over_Nside;
+
+            Tscal diff_factor = 0;
+            for (u32 i = 0; i < AMRBlock::block_size; i++) {
+                // diff_factor += acc.block_field_gradient[i + block_id * AMRBlock::block_size];
+                diff_factor = g_sycl_max(
+                    acc.block_field_gradient[i + block_id * AMRBlock::block_size],
+                    diff_factor); // pensez aux max notamment sur le
+                                  // block_base
+            }
+
+            if (diff_factor > error_max) {
+                should_refine   = true;
+                should_derefine = false;
+            } else if (diff_factor <= error_min) {
+                should_refine   = false;
+                should_derefine = true;
+            } else {
+                should_refine   = false;
+                should_derefine = false;
+            }
+
+            should_refine = should_refine && (high_bound.x() - low_bound.x() > AMRBlock::Nside);
+            should_refine = should_refine && (high_bound.y() - low_bound.y() > AMRBlock::Nside);
+            should_refine = should_refine && (high_bound.z() - low_bound.z() > AMRBlock::Nside);
+        }
+    };
+
     class RefineCellAccessor {
         public:
         sycl::accessor<f64, 1, sycl::access::mode::read_write, sycl::target::device> rho;
@@ -529,8 +728,9 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
     AMRSortBlocks block_sorter(context, solver_config, storage);
     block_sorter.reorder_amr_blocks();
 
-    using AMRmode_None         = typename AMRMode<Tvec, TgridVec>::None;
-    using AMRmode_DensityBased = typename AMRMode<Tvec, TgridVec>::DensityBased;
+    using AMRmode_None           = typename AMRMode<Tvec, TgridVec>::None;
+    using AMRmode_DensityBased   = typename AMRMode<Tvec, TgridVec>::DensityBased;
+    using AMRmode_PseudoGradient = typename AMRMode<Tvec, TgridVec>::PseudoGradient;
 
     if (AMRmode_None *cfg = std::get_if<AMRmode_None>(&solver_config.amr_mode.config)) {
         // no refinment here turn around there is nothing to see
@@ -556,6 +756,27 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         // derefine_list since no permutations were applied in internal_refine_grid and no cells can
         // be both refined and derefined in the same pass
         internal_derefine_grid<RefineCellAccessor>(std::move(derefine_list));
+    }
+
+    else if (
+        AMRmode_PseudoGradient *cfg
+        = std::get_if<AMRmode_PseudoGradient>(&solver_config.amr_mode.config)) {
+        Tscal dxfact(solver_config.grid_coord_to_pos_fact);
+
+        // get refine and derefine list
+        shambase::DistributedData<OptIndexList> refine_list;
+        shambase::DistributedData<OptIndexList> derefine_list;
+
+        gen_refine_block_changes<RefinePseudoGradientBlock>(
+            refine_list, derefine_list, dxfact, cfg->error_min, cfg->error_max);
+
+        internal_refine_grid<RefineCellAccessor>(std::move(refine_list));
+
+        internal_derefine_grid<RefineCellAccessor>(std::move(derefine_list));
+    }
+
+    else {
+        shambase::throw_unimplented();
     }
 }
 

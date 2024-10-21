@@ -123,7 +123,14 @@ namespace shammodels::basegodunov {
                     self.amr_mode.set_refine_density_based(crit_mass);
                 },
                 py::kw_only(),
-                py::arg("crit_mass"));
+                py::arg("crit_mass"))
+            .def(
+                "set_amr_mode_pseudo_gradient",
+                [](TConfig &self, Tscal error_min, Tscal error_max) {
+                    self.amr_mode.set_refine_pseudo_gradient(error_min, error_max);
+                },
+                py::arg("error_min"),
+                py::arg("error_max"));
 
         std::string sod_tube_analysis_name = name_model + "_AnalysisSodTube";
         py::class_<TAnalysisSodTube>(m, sod_tube_analysis_name.c_str())
