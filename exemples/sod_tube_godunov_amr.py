@@ -37,8 +37,12 @@ cfg.set_riemann_solver_hll()
 #cfg.set_slope_lim_vanleer_sym()
 cfg.set_slope_lim_minmod()
 cfg.set_face_time_interpolation(True)
-mass_crit = 0.0000001*5*2*2
-cfg.set_amr_mode_density_based(crit_mass=mass_crit)
+# mass_crit = 0.0000001*5*2*2
+# cfg.set_amr_mode_density_based(crit_mass=mass_crit)
+
+error_min = 0.01
+error_max = 0.03
+cfg.set_amr_mode_pseudo_gradient(error_min, error_max)
 model.set_config(cfg)
 
 

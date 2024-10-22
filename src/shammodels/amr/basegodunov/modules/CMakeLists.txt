@@ -16,6 +16,7 @@ set(Sources
     AMRGridRefinementHandler.cpp
     AMRSortBlocks.cpp
     AMRSetup.cpp
+    ComputePseudoGradient.cpp
 )
 set(Headers
 )

@@ -22,6 +22,7 @@
 #include "shammodels/amr/basegodunov/modules/ComputeCellInfos.hpp"
 #include "shammodels/amr/basegodunov/modules/ComputeFlux.hpp"
 #include "shammodels/amr/basegodunov/modules/ComputeGradient.hpp"
+#include "shammodels/amr/basegodunov/modules/ComputePseudoGradient.hpp"
 #include "shammodels/amr/basegodunov/modules/ComputeTimeDerivative.hpp"
 #include "shammodels/amr/basegodunov/modules/ConsToPrim.hpp"
 #include "shammodels/amr/basegodunov/modules/FaceInterpolate.hpp"
@@ -118,6 +119,10 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
     if (solver_config.is_dust_on()) {
         dt_compute.compute_dt_dust_fields();
     }
+
+    // compute pseudo gradient
+    modules::ComputePseudoGradient pseudo_grad(context, solver_config, storage);
+    pseudo_grad.compute_pseudo_gradient();
 
     // RK2 + flux lim
 
