@@ -200,6 +200,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
 
     storage.vel.reset();
     storage.press.reset();
+    storage.pseudo_gradient_rho.reset();
 
     storage.cell_infos.reset();
     storage.cell_link_graph.reset();

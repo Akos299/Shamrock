@@ -13,6 +13,7 @@
  *
  */
 
+#include "shambase/memory.hpp"
 #include "shammodels/amr/basegodunov/modules/ComputePseudoGradient.hpp"
 #include "shamrock/scheduler/SchedulerUtility.hpp"
 
@@ -95,6 +96,8 @@ void shammodels::basegodunov::modules::ComputePseudoGradient<Tvec, TgridVec>::
         sycl::buffer<TgridVec> &buf_block_max = mpdat.pdat.get_field_buf_ref<TgridVec>(1);
 
         sycl::buffer<Tscal> &buf_rho = mpdat.pdat.get_field_buf_ref<Tscal>(irho_ghost);
+        // sycl::buffer<Tvec> &buf_vel = shambase::get_check_ref(storage.vel.get().get_buf(id));
+        sycl::buffer<Tscal> &buf_press = shambase::get_check_ref(storage.press.get().get_buf(id));
 
         AMRGraph &graph_neigh_xp
             = shambase::get_check_ref(oriented_cell_graph.graph_links[oriented_cell_graph.xp]);

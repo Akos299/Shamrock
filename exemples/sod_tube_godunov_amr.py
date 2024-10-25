@@ -18,8 +18,8 @@ multx = 4
 multy = 1
 multz = 1
 
-cell_size = 1 << 2 # refinement is limited to cell_size = 2
-base = 16
+cell_size = 1 << 4 # refinement is limited to cell_size = 2
+base = 4
 model.make_base_grid((0,0,0),(cell_size,cell_size,cell_size),(base*multx,base*multy,base*multz))
 
 cfg = model.gen_default_config()
@@ -40,8 +40,8 @@ cfg.set_face_time_interpolation(True)
 # mass_crit = 0.0000001*5*2*2
 # cfg.set_amr_mode_density_based(crit_mass=mass_crit)
 
-error_min = 0.01
-error_max = 0.03
+error_min = 0.0000004
+error_max = 0.0000005
 cfg.set_amr_mode_pseudo_gradient(error_min, error_max)
 model.set_config(cfg)
 
@@ -221,7 +221,7 @@ if True:
     ax1.set_ylim(-0.1,1.1)
     ax1.set_xlim(0.5,1.5)
     ax2.set_ylabel("AMR level")
-    plt.title(r"$m_{crit}="+str(mass_crit)+"$")
+    # plt.title(r"$m_{crit}="+str(mass_crit)+"$")
     plt.savefig("sod_tube.pdf")
     plt.savefig("sod_tube.png")
     #######

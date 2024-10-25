@@ -13,6 +13,8 @@
  *
  */
 
+#include "shambase/SourceLocation.hpp"
+#include "shamcomm/logs.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRGridRefinementHandler.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRSortBlocks.hpp"
 #include "shamrock/scheduler/SchedulerUtility.hpp"
@@ -74,14 +76,22 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                 u32 id = gid.get_linear_id();
 
                 std::array<BlockCoord, split_count> blocks;
+                bool do_merge = true;
 
-                bool all_want_to_merge = true;
-                for (u32 lid = 0; lid < split_count; lid++) {
-                    blocks[lid]       = BlockCoord{acc_min[gid + lid], acc_max[gid + lid]};
-                    all_want_to_merge = all_want_to_merge && acc_merge_flag[gid + lid];
+                if (id + split_count <= obj_cnt) {
+                    bool all_want_to_merge = true;
+
+                    for (u32 lid = 0; lid < split_count; lid++) {
+                        blocks[lid]       = BlockCoord{acc_min[gid + lid], acc_max[gid + lid]};
+                        all_want_to_merge = all_want_to_merge && acc_merge_flag[gid + lid];
+                    }
+                    do_merge = all_want_to_merge && BlockCoord::are_mergeable(blocks);
+
+                } else {
+                    do_merge = false;
                 }
 
-                acc_merge_flag[gid] = all_want_to_merge && BlockCoord::are_mergeable(blocks);
+                acc_merge_flag[gid] = do_merge;
             });
         });
 
@@ -99,6 +109,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         // add the results to the map
         refine_list.add_obj(id_patch, OptIndexList{std::move(buf_refine), len_refine});
 
+        logger::raw_ln(SourceLocation{}.format_one_line_func());
         ////////////////////////////////////////////////////////////////////////////////
         // derefinement
         ////////////////////////////////////////////////////////////////////////////////
@@ -594,7 +605,6 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 
     // Ensure that the blocks are sorted before refinement
     AMRSortBlocks block_sorter(context, solver_config, storage);
-    block_sorter.reorder_amr_blocks();
 
     using AMRmode_None           = typename AMRMode<Tvec, TgridVec>::None;
     using AMRmode_DensityBased   = typename AMRMode<Tvec, TgridVec>::DensityBased;
@@ -613,7 +623,6 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 
         gen_refine_block_changes<RefineCritBlock>(
             refine_list, derefine_list, dxfact, cfg->crit_mass);
-
         //////// apply refine ////////
         // Note that this only add new blocks at the end of the patchdata
         internal_refine_grid<RefineCellAccessor>(std::move(refine_list));
@@ -624,6 +633,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         // derefine_list since no permutations were applied in internal_refine_grid and no cells can
         // be both refined and derefined in the same pass
         internal_derefine_grid<RefineCellAccessor>(std::move(derefine_list));
+
     }
 
     else if (
