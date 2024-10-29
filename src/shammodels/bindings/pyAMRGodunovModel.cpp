@@ -130,7 +130,15 @@ namespace shammodels::basegodunov {
                     self.amr_mode.set_refine_pseudo_gradient(error_min, error_max);
                 },
                 py::arg("error_min"),
-                py::arg("error_max"));
+                py::arg("error_max"))
+
+            .def(
+                "set_amr_mode_second_derivative",
+                [](TConfig &self, Tscal critTorefine, Tscal critToderefine) {
+                    self.amr_mode.set_refine_second_derivative(critTorefine, critToderefine);
+                },
+                py::arg("critTorefine"),
+                py::arg("critToderefine"));
 
         std::string sod_tube_analysis_name = name_model + "_AnalysisSodTube";
         py::class_<TAnalysisSodTube>(m, sod_tube_analysis_name.c_str())

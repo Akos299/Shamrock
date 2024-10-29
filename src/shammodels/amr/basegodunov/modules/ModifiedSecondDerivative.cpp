@@ -7,21 +7,23 @@
 // -------------------------------------------------------//
 
 /**
- * @file ComputePseudoGradient.cpp
+ * @file ModifiedSecondDerivative.cpp
  * @author Léodasce Sewanou (leodasce.sewanou@ens-lyon.fr)
  * @brief
  *
  */
 
 #include "shambase/memory.hpp"
+#include "shambackends/typeAliasVec.hpp"
 #include "shammodels/amr/basegodunov/modules/ComputePseudoGradient.hpp"
+#include "shammodels/amr/basegodunov/modules/ModifiedSecondDerivative.hpp"
 #include "shamrock/scheduler/SchedulerUtility.hpp"
+#include <utility>
 
 using AMRGraphLinkiterator = shammodels::basegodunov::modules::AMRGraphLinkiterator;
 
-/* think of something taking more than one field accessor*/
 template<class T, class Tvec, class ACCField>
-inline T get_pseudo_grad(
+inline T modif_second_derivative(
     const u32 cell_global_id,
     const shambase::VecComponent<Tvec> delta_cell,
     const AMRGraphLinkiterator &graph_iter_xp,
@@ -30,70 +32,69 @@ inline T get_pseudo_grad(
     const AMRGraphLinkiterator &graph_iter_ym,
     const AMRGraphLinkiterator &graph_iter_zp,
     const AMRGraphLinkiterator &graph_iter_zm,
-    ACCField &&field_access)
-
-{
-
+    ACCField &&field_access) {
     using namespace sham;
     using namespace sham::details;
 
-    auto grad_scalar = [&](T u_curr, T u_neigh) {
-        T max = g_sycl_max(g_sycl_abs(u_curr), g_sycl_abs(u_neigh));
-        max   = g_sycl_abs(u_curr - u_neigh) / max;
-        return g_sycl_max(g_sycl_min(max, 1.0), 0.0);
-    };
-
-    auto get_amr_grad = [&](auto &graph_links) -> T {
+    auto get_avg_neigh = [&](auto &graph_links) -> T {
         T acc   = shambase::VectorProperties<T>::get_zero();
         u32 cnt = graph_links.for_each_object_link_cnt(cell_global_id, [&](u32 id_b) {
-            T u_cur_acc   = field_access(cell_global_id);
-            T u_neigh_acc = field_access(id_b);
-            acc           = g_sycl_max(acc, grad_scalar(u_cur_acc, u_neigh_acc));
+            acc += field_access(id_b);
         });
-
-        return (cnt > 0) ? acc : shambase::VectorProperties<T>::get_zero();
+        return (cnt > 0) ? acc / cnt : shambase::VectorProperties<T>::get_zero();
     };
 
-    T u_xp_dir = get_amr_grad(graph_iter_xp);
-    T u_xm_dir = get_amr_grad(graph_iter_xm);
-    T u_yp_dir = get_amr_grad(graph_iter_yp);
-    T u_ym_dir = get_amr_grad(graph_iter_ym);
-    T u_zp_dir = get_amr_grad(graph_iter_zp);
-    T u_zm_dir = get_amr_grad(graph_iter_zm);
+    auto eps_ref = 0.01;
+    auto epsilon = shambase::get_epsilon<T>();
+    T u_cur      = field_access(cell_global_id);
+    T u_xp       = get_avg_neigh(graph_iter_xp);
+    T u_xm       = get_avg_neigh(graph_iter_xm);
+    T u_yp       = get_avg_neigh(graph_iter_yp);
+    T u_ym       = get_avg_neigh(graph_iter_ym);
+    T u_zp       = get_avg_neigh(graph_iter_zp);
+    T u_zm       = get_avg_neigh(graph_iter_zm);
 
-    T res = max_8points(
-        shambase::VectorProperties<T>::get_zero(),
-        shambase::VectorProperties<T>::get_zero(),
-        u_xp_dir,
-        u_xm_dir,
-        u_yp_dir,
-        u_ym_dir,
-        u_zp_dir,
-        u_zm_dir);
-    return res;
+    T delta_u_xp = u_xp - u_cur;
+    T delta_u_xm = u_xm - u_cur;
+    T delta_u_yp = u_yp - u_cur;
+    T delta_u_ym = u_ym - u_cur;
+    T delta_u_zp = u_zp - u_cur;
+    T delta_u_zm = u_zm - u_cur;
+
+    T scalar_x = g_sycl_abs(u_xp) + g_sycl_abs(u_xm) + 2 * g_sycl_abs(u_cur);
+    T scalar_y = g_sycl_abs(u_yp) + g_sycl_abs(u_ym) + 2 * g_sycl_abs(u_cur);
+    T scalar_z = g_sycl_abs(u_zp) + g_sycl_abs(u_zm) + 2 * g_sycl_abs(u_cur);
+
+    T res_x = g_sycl_abs(delta_u_xm + delta_u_xp)
+              / (g_sycl_abs(delta_u_xm) + g_sycl_abs(delta_u_xp) + eps_ref * scalar_x + epsilon);
+    T res_y = g_sycl_abs(delta_u_ym + delta_u_yp)
+              / (g_sycl_abs(delta_u_ym) + g_sycl_abs(delta_u_yp) + eps_ref * scalar_y + epsilon);
+    T res_z = g_sycl_abs(delta_u_zm + delta_u_zp)
+              / (g_sycl_abs(delta_u_zm) + g_sycl_abs(delta_u_zp) + eps_ref * scalar_z + epsilon);
+
+    return g_sycl_max(res_x, g_sycl_max(res_y, res_z)) * delta_cell;
 }
 
 template<class Tvec, class TgridVec>
-void shammodels::basegodunov::modules::ComputePseudoGradient<Tvec, TgridVec>::
-    compute_pseudo_gradient() {
+void shammodels::basegodunov::modules::ModifiedSecondDerivative<Tvec, TgridVec>::
+    compute_modified_second_derivative() {
     StackEntry stack_loc{};
 
     using MergedPDat = shamrock::MergedPatchData;
 
     shamrock::SchedulerUtility utility(scheduler());
-    shamrock::ComputeField<Tscal> result_rho
-        = utility.make_compute_field<Tscal>("pseudo grad rho", AMRBlock::block_size, [&](u64 id) {
-              return storage.merged_patchdata_ghost.get().get(id).total_elements;
-          });
+    shamrock::ComputeField<Tscal> result_rho = utility.make_compute_field<Tscal>(
+        "second derivative rho", AMRBlock::block_size, [&](u64 id) {
+            return storage.merged_patchdata_ghost.get().get(id).total_elements;
+        });
 
-    shamrock::ComputeField<Tscal> result_press
-        = utility.make_compute_field<Tscal>("pseudo grad press", AMRBlock::block_size, [&](u64 id) {
-              return storage.merged_patchdata_ghost.get().get(id).total_elements;
-          });
+    shamrock::ComputeField<Tscal> result_press = utility.make_compute_field<Tscal>(
+        "second derivative press", AMRBlock::block_size, [&](u64 id) {
+            return storage.merged_patchdata_ghost.get().get(id).total_elements;
+        });
 
     shamrock::patch::PatchDataLayout &ghost_layout = storage.ghost_layout.get();
     u32 irho_ghost                                 = ghost_layout.get_field_idx<Tscal>("rho");
-
     storage.cell_link_graph.get().for_each([&](u64 id, OrientedAMRGraph &oriented_cell_graph) {
         MergedPDat &mpdat = storage.merged_patchdata_ghost.get().get(id);
 
@@ -137,19 +138,19 @@ void shammodels::basegodunov::modules::ComputePseudoGradient<Tvec, TgridVec>::
 
             sycl::accessor rho{buf_rho, cgh, sycl::read_only};
             sycl::accessor press{buf_press, cgh, sycl::read_only};
-            sycl::accessor pseudo_grad_rho{
+            sycl::accessor sec_der_rho{
                 shambase::get_check_ref(result_rho.get_buf(id)),
                 cgh,
                 sycl::write_only,
                 sycl::no_init};
-            sycl::accessor pseudo_grad_press{
+            sycl::accessor sec_der_press{
                 shambase::get_check_ref(result_press.get_buf(id)),
                 cgh,
                 sycl::write_only,
                 sycl::no_init};
             u32 cell_count = (mpdat.total_elements) * AMRBlock::block_size;
 
-            shambase::parralel_for(cgh, cell_count, "compute_pseudo_grad", [=](u64 gid) {
+            shambase::parralel_for(cgh, cell_count, "second derivative", [=](u64 gid) {
                 const u32 cell_global_id = (u32) gid;
 
                 const u32 block_id    = cell_global_id / AMRBlock::block_size;
@@ -159,7 +160,7 @@ void shammodels::basegodunov::modules::ComputePseudoGradient<Tvec, TgridVec>::
 
                 // TODO : will be optimize later. Think of how to combine those 2 in on so we
                 // can iterate though cell just on times and do all computation
-                auto result_r = get_pseudo_grad<Tscal, Tvec>(
+                auto result_r = modif_second_derivative<Tscal, Tvec>(
                     cell_global_id,
                     delta_cell,
                     graph_iter_xp,
@@ -172,7 +173,7 @@ void shammodels::basegodunov::modules::ComputePseudoGradient<Tvec, TgridVec>::
                         return rho[id];
                     });
 
-                auto result_p = get_pseudo_grad<Tscal, Tvec>(
+                auto result_p = modif_second_derivative<Tscal, Tvec>(
                     cell_global_id,
                     delta_cell,
                     graph_iter_xp,
@@ -184,14 +185,13 @@ void shammodels::basegodunov::modules::ComputePseudoGradient<Tvec, TgridVec>::
                     [=](u32 id) {
                         return press[id];
                     });
-                pseudo_grad_rho[cell_global_id]   = result_r;
-                pseudo_grad_press[cell_global_id] = result_p;
+                sec_der_rho[cell_global_id]   = result_r;
+                sec_der_press[cell_global_id] = result_p;
             });
         });
     });
-
-    storage.pseudo_gradient_rho.set(std::move(result_rho));
-    storage.pseudo_gradient_press.set(std::move(result_press));
+    storage.sec_der_rho.set(std::move(result_rho));
+    storage.sec_der_press.set(std::move(result_press));
 }
 
 template class shammodels::basegodunov::modules::ComputePseudoGradient<f64_3, i64_3>;

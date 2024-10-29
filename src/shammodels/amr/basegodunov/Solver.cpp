@@ -49,6 +49,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
         return scheduler().patch_data.owned_data.get(p.id_patch).get_obj_cnt();
     });
 
+    scheduler().scheduler_step(true, true);
+
     SerialPatchTree<TgridVec> _sptree = SerialPatchTree<TgridVec>::build(scheduler());
     _sptree.attach_buf();
     storage.serial_patch_tree.set(std::move(_sptree));
@@ -201,6 +203,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
     storage.vel.reset();
     storage.press.reset();
     storage.pseudo_gradient_rho.reset();
+    storage.pseudo_gradient_press.reset();
 
     storage.cell_infos.reset();
     storage.cell_link_graph.reset();

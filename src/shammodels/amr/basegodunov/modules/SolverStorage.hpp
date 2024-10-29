@@ -356,6 +356,13 @@ namespace shammodels::basegodunov {
         // press pseudo-gradient
         Component<shamrock::ComputeField<Tscal>> pseudo_gradient_press;
 
+        //  density's Lohner values
+        Component<shamrock::ComputeField<Tscal>> sec_der_rho;
+        // velocity's Lohner values
+        Component<shamrock::ComputeField<Tvec>> sec_der_vel;
+        // press Lohner values
+        Component<shamrock::ComputeField<Tscal>> sec_der_press;
+
         struct Timings {
             f64 interface = 0;
             f64 neighbors = 0;

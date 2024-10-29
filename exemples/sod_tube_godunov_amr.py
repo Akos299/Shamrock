@@ -14,12 +14,12 @@ model = shamrock.get_AMRGodunov(
 
 model.init_scheduler(int(1e7),1)
 
-multx = 4
+multx = 2
 multy = 1
 multz = 1
 
-cell_size = 1 << 4 # refinement is limited to cell_size = 2
-base = 4
+cell_size = 1 << 6  # refinement is limited to cell_size = 2
+base = 8
 model.make_base_grid((0,0,0),(cell_size,cell_size,cell_size),(base*multx,base*multy,base*multz))
 
 cfg = model.gen_default_config()
@@ -29,7 +29,7 @@ cfg.set_scale_factor(scale_fact)
 gamma = 1.4
 cfg.set_eos_gamma(gamma)
 #cfg.set_riemann_solver_rusanov()
-cfg.set_riemann_solver_hll()
+cfg.set_riemann_solver_hllc()
 
 #cfg.set_slope_lim_none()
 #cfg.set_slope_lim_vanleer_f()
@@ -40,8 +40,10 @@ cfg.set_face_time_interpolation(True)
 # mass_crit = 0.0000001*5*2*2
 # cfg.set_amr_mode_density_based(crit_mass=mass_crit)
 
-error_min = 0.0000004
-error_max = 0.0000005
+# error_min = 0.0000004
+# error_max = 0.000005
+error_min = 0.001
+error_max = 0.5
 cfg.set_amr_mode_pseudo_gradient(error_min, error_max)
 model.set_config(cfg)
 
@@ -94,6 +96,10 @@ t_target = 0.245
 #for i in range(1000):
 #    model.dump_vtk(f"test{i:04d}.vtk")
 #    model.timestep()
+
+model.evolve_once_override_time(0.,0.)
+model.evolve_once_override_time(0.,0.)
+model.evolve_once_override_time(0.,0.)
 
 model.evolve_until(t_target)
 

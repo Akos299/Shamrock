@@ -25,7 +25,7 @@ namespace shamalgs::numeric {
     template<class T>
     sycl::buffer<T> exclusive_sum(sycl::queue &q, sycl::buffer<T> &buf1, u32 len) {
 #ifdef __MACH__ // decoupled lookback perf on mac os is awfull
-        return details::exclusive_sum_fallback(q, buf1, len);
+        return details::exclusive_sum_gpugems39_1(q, buf1, len);
 #else
     #ifdef __HIPSYCL_ENABLE_LLVM_SSCP_TARGET__
         // SSCP does not compile decoupled lookback scan

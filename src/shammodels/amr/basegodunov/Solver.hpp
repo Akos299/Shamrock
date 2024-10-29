@@ -82,7 +82,12 @@ namespace shammodels::basegodunov {
             Tscal error_max;
         };
 
-        using mode = std::variant<None, DensityBased, PseudoGradient>;
+        struct SecondDerivative {
+            Tscal critTorefine;
+            Tscal critToderefine;
+        };
+
+        using mode = std::variant<None, DensityBased, PseudoGradient, SecondDerivative>;
 
         mode config = None{};
 
@@ -90,6 +95,9 @@ namespace shammodels::basegodunov {
         void set_refine_density_based(Tscal crit_mass) { config = DensityBased{crit_mass}; }
         void set_refine_pseudo_gradient(Tscal error_min, Tscal error_max) {
             config = PseudoGradient{error_min, error_max};
+        }
+        void set_refine_second_derivative(Tscal critTorefine, Tscal critToderefine) {
+            config = SecondDerivative{critTorefine, critToderefine};
         }
     };
 

@@ -17,6 +17,7 @@
 #include "shamcomm/logs.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRGridRefinementHandler.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRSortBlocks.hpp"
+#include "shamrock/scheduler/ComputeField.hpp"
 #include "shamrock/scheduler/SchedulerUtility.hpp"
 
 template<class Tvec, class TgridVec>
@@ -399,7 +400,9 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         sycl::accessor<TgridVec, 1, sycl::access::mode::read, sycl::target::device>
             block_high_bound;
         sycl::accessor<Tscal, 1, sycl::access::mode::read, sycl::target::device>
-            block_field_gradient; // For now we use dust density as field
+            block_density_pseudo_gradient;
+        sycl::accessor<Tscal, 1, sycl::access::mode::read, sycl::target::device>
+            block_press_pseudo_gradient;
 
         Tscal one_over_Nside = 1. / AMRBlock::Nside;
         Tscal dxfact;
@@ -413,10 +416,14 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             Tscal dxfact,
             Tscal error_min,
             Tscal error_max,
-            shamrock::ComputeField<Tscal> &cfield_grad_rho)
+            shamrock::ComputeField<Tscal> &cfield_grad_rho,
+            shamrock::ComputeField<Tscal> &cfield_grad_press)
             : block_low_bound{*pdat.get_field<TgridVec>(0).get_buf(), cgh, sycl::read_only},
               block_high_bound{*pdat.get_field<TgridVec>(1).get_buf(), cgh, sycl::read_only},
-              block_field_gradient{cfield_grad_rho.get_buf_check(id_patch), cgh, sycl::read_only},
+              block_density_pseudo_gradient{
+                  cfield_grad_rho.get_buf_check(id_patch), cgh, sycl::read_only},
+              block_press_pseudo_gradient{
+                  cfield_grad_press.get_buf_check(id_patch), cgh, sycl::read_only},
               dxfact(dxfact), error_min(error_min), error_max(error_max) {}
 
         void refine_criterion(
@@ -434,18 +441,94 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 
             Tvec block_cell_size = (upper_flt - lower_flt) * one_over_Nside;
 
-            Tscal diff_factor = 0;
+            Tscal rho_diff_factor   = 0;
+            Tscal press_diff_factor = 0;
             for (u32 i = 0; i < AMRBlock::block_size; i++) {
-                diff_factor = g_sycl_max(
-                    acc.block_field_gradient[i + block_id * AMRBlock::block_size],
-                    diff_factor); // pensez aux max notamment sur le
-                                  // block_base
+                rho_diff_factor = g_sycl_max(
+                    acc.block_density_pseudo_gradient[i + block_id * AMRBlock::block_size],
+                    rho_diff_factor);
+                press_diff_factor = g_sycl_max(
+                    acc.block_press_pseudo_gradient[i + block_id * AMRBlock::block_size],
+                    press_diff_factor);
             }
 
-            if (diff_factor > error_max) {
+            if (rho_diff_factor > error_max || press_diff_factor > error_max) {
                 should_refine   = true;
                 should_derefine = false;
-            } else if (diff_factor <= error_min) {
+            } else if (rho_diff_factor <= error_min || press_diff_factor <= error_min) {
+                should_refine   = false;
+                should_derefine = true;
+            } else {
+                should_refine   = false;
+                should_derefine = false;
+            }
+
+            should_refine = should_refine && (high_bound.x() - low_bound.x() > AMRBlock::Nside);
+            should_refine = should_refine && (high_bound.y() - low_bound.y() > AMRBlock::Nside);
+            should_refine = should_refine && (high_bound.z() - low_bound.z() > AMRBlock::Nside);
+        }
+    };
+
+    class RefineSecondDerivativeBlock {
+        public:
+        sycl::accessor<TgridVec, 1, sycl::access::mode::read, sycl::target::device> block_low_bound;
+        sycl::accessor<TgridVec, 1, sycl::access::mode::read, sycl::target::device>
+            block_high_bound;
+        sycl::accessor<Tscal, 1, sycl::access::mode::read, sycl::target::device>
+            block_density_sec_der;
+        sycl::accessor<Tscal, 1, sycl::access::mode::read, sycl::target::device>
+            block_press_sec_der;
+
+        Tscal one_over_Nside = 1. / AMRBlock::Nside;
+        Tscal dxfact;
+        Tscal critTorefine, critToderefine;
+
+        RefineSecondDerivativeBlock(
+            sycl::handler &cgh,
+            u64 id_patch,
+            shamrock::patch::Patch p,
+            shamrock::patch::PatchData &pdat,
+            Tscal dxfact,
+            Tscal critTorefine,
+            Tscal critToderefine,
+            shamrock::ComputeField<Tscal> &cfield_grad_rho,
+            shamrock::ComputeField<Tscal> &cfield_grad_press)
+            : block_low_bound{*pdat.get_field<TgridVec>(0).get_buf(), cgh, sycl::read_only},
+              block_high_bound{*pdat.get_field<TgridVec>(1).get_buf(), cgh, sycl::read_only},
+              block_density_sec_der{cfield_grad_rho.get_buf_check(id_patch), cgh, sycl::read_only},
+              block_press_sec_der{cfield_grad_press.get_buf_check(id_patch), cgh, sycl::read_only},
+              dxfact(dxfact), critTorefine(critTorefine), critToderefine(critToderefine) {}
+
+        void refine_criterion(
+            u32 block_id,
+            RefineSecondDerivativeBlock acc,
+            bool &should_refine,
+            bool &should_derefine) const {
+            using namespace sham::details;
+
+            TgridVec low_bound  = acc.block_low_bound[block_id];
+            TgridVec high_bound = acc.block_high_bound[block_id];
+
+            Tvec lower_flt = low_bound.template convert<Tscal>() * dxfact;
+            Tvec upper_flt = high_bound.template convert<Tscal>() * dxfact;
+
+            Tvec block_cell_size = (upper_flt - lower_flt) * one_over_Nside;
+
+            Tscal rho_diff_factor   = 0;
+            Tscal press_diff_factor = 0;
+            for (u32 i = 0; i < AMRBlock::block_size; i++) {
+                rho_diff_factor = g_sycl_max(
+                    acc.block_density_sec_der[i + block_id * AMRBlock::block_size],
+                    rho_diff_factor);
+                press_diff_factor = g_sycl_max(
+                    acc.block_press_sec_der[i + block_id * AMRBlock::block_size],
+                    press_diff_factor);
+            }
+
+            if (rho_diff_factor > critTorefine || press_diff_factor > critTorefine) {
+                should_refine   = true;
+                should_derefine = false;
+            } else if (rho_diff_factor <= critToderefine || press_diff_factor <= critTorefine) {
                 should_refine   = false;
                 should_derefine = true;
             } else {
@@ -606,9 +689,10 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
     // Ensure that the blocks are sorted before refinement
     AMRSortBlocks block_sorter(context, solver_config, storage);
 
-    using AMRmode_None           = typename AMRMode<Tvec, TgridVec>::None;
-    using AMRmode_DensityBased   = typename AMRMode<Tvec, TgridVec>::DensityBased;
-    using AMRmode_PseudoGradient = typename AMRMode<Tvec, TgridVec>::PseudoGradient;
+    using AMRmode_None             = typename AMRMode<Tvec, TgridVec>::None;
+    using AMRmode_DensityBased     = typename AMRMode<Tvec, TgridVec>::DensityBased;
+    using AMRmode_PseudoGradient   = typename AMRMode<Tvec, TgridVec>::PseudoGradient;
+    using AMRmode_SecondDerivative = typename AMRMode<Tvec, TgridVec>::SecondDerivative;
 
     if (AMRmode_None *cfg = std::get_if<AMRmode_None>(&solver_config.amr_mode.config)) {
         // no refinment here turn around there is nothing to see
@@ -645,10 +729,43 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         shambase::DistributedData<OptIndexList> refine_list;
         shambase::DistributedData<OptIndexList> derefine_list;
 
-        shamrock::ComputeField<Tscal> &cfield_grad_rho = storage.pseudo_gradient_rho.get();
+        shamrock::ComputeField<Tscal> &cfield_grad_rho   = storage.pseudo_gradient_rho.get();
+        shamrock::ComputeField<Tscal> &cfield_grad_press = storage.pseudo_gradient_press.get();
 
         gen_refine_block_changes<RefinePseudoGradientBlock>(
-            refine_list, derefine_list, dxfact, cfg->error_min, cfg->error_max, cfield_grad_rho);
+            refine_list,
+            derefine_list,
+            dxfact,
+            cfg->error_min,
+            cfg->error_max,
+            cfield_grad_rho,
+            cfield_grad_press);
+
+        internal_refine_grid<RefineCellAccessor>(std::move(refine_list));
+
+        internal_derefine_grid<RefineCellAccessor>(std::move(derefine_list));
+    }
+
+    else if (
+        AMRmode_SecondDerivative *cfg
+        = std::get_if<AMRmode_SecondDerivative>(&solver_config.amr_mode.config)) {
+        Tscal dxfact(solver_config.grid_coord_to_pos_fact);
+
+        // get refine and derefine list
+        shambase::DistributedData<OptIndexList> refine_list;
+        shambase::DistributedData<OptIndexList> derefine_list;
+
+        shamrock::ComputeField<Tscal> &cfield_grad_rho   = storage.sec_der_rho.get();
+        shamrock::ComputeField<Tscal> &cfield_grad_press = storage.sec_der_press.get();
+
+        gen_refine_block_changes<RefineSecondDerivativeBlock>(
+            refine_list,
+            derefine_list,
+            dxfact,
+            cfg->critTorefine,
+            cfg->critToderefine,
+            cfield_grad_rho,
+            cfield_grad_press);
 
         internal_refine_grid<RefineCellAccessor>(std::move(refine_list));
 

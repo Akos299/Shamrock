@@ -17,6 +17,7 @@ set(Sources
     AMRSortBlocks.cpp
     AMRSetup.cpp
     ComputePseudoGradient.cpp
+    ModifiedSecondDerivative.cpp
 )
 set(Headers
 )
