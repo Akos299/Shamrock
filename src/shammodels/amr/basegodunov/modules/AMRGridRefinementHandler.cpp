@@ -14,6 +14,7 @@
  */
 
 #include "shambase/SourceLocation.hpp"
+#include "shambackends/math.hpp"
 #include "shamcomm/logs.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRGridRefinementHandler.hpp"
 #include "shammodels/amr/basegodunov/modules/AMRSortBlocks.hpp"
@@ -524,11 +525,13 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                     acc.block_press_sec_der[i + block_id * AMRBlock::block_size],
                     press_diff_factor);
             }
-
-            if (rho_diff_factor > critTorefine || press_diff_factor > critTorefine) {
+            //   if (rho_diff_factor > critTorefine || press_diff_factor > critTorefine){
+            if (g_sycl_max(rho_diff_factor, press_diff_factor) > critTorefine) {
                 should_refine   = true;
                 should_derefine = false;
-            } else if (rho_diff_factor <= critToderefine || press_diff_factor <= critTorefine) {
+            }
+            // else if (rho_diff_factor <= critToderefine || press_diff_factor <= critTorefine){
+            else if (g_sycl_max(rho_diff_factor, press_diff_factor) <= critToderefine) {
                 should_refine   = false;
                 should_derefine = true;
             } else {

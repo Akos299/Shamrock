@@ -27,6 +27,7 @@
 #include "shammodels/amr/basegodunov/modules/ConsToPrim.hpp"
 #include "shammodels/amr/basegodunov/modules/FaceInterpolate.hpp"
 #include "shammodels/amr/basegodunov/modules/GhostZones.hpp"
+#include "shammodels/amr/basegodunov/modules/ModifiedSecondDerivative.hpp"
 #include "shammodels/amr/basegodunov/modules/StencilGenerator.hpp"
 #include "shammodels/amr/basegodunov/modules/TimeIntegrator.hpp"
 #include "shamrock/io/LegacyVtkWritter.hpp"
@@ -122,9 +123,13 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
         dt_compute.compute_dt_dust_fields();
     }
 
-    // compute pseudo gradient
-    modules::ComputePseudoGradient pseudo_grad(context, solver_config, storage);
-    pseudo_grad.compute_pseudo_gradient();
+    // // compute pseudo gradient
+    // modules::ComputePseudoGradient pseudo_grad(context, solver_config, storage);
+    // pseudo_grad.compute_pseudo_gradient();
+
+    // compute second derivative
+    modules::ModifiedSecondDerivative modif_sec_der(context, solver_config, storage);
+    modif_sec_der.compute_modified_second_derivative();
 
     // RK2 + flux lim
 
@@ -202,8 +207,11 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
 
     storage.vel.reset();
     storage.press.reset();
-    storage.pseudo_gradient_rho.reset();
-    storage.pseudo_gradient_press.reset();
+    // storage.pseudo_gradient_rho.reset();
+    // storage.pseudo_gradient_press.reset();
+
+    storage.sec_der_press.reset();
+    storage.sec_der_rho.reset();
 
     storage.cell_infos.reset();
     storage.cell_link_graph.reset();

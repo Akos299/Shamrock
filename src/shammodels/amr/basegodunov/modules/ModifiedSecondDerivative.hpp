@@ -15,11 +15,9 @@
  *
  */
 
-#include "shambase/memory.hpp"
 #include "shambackends/vec.hpp"
 #include "shammodels/amr/basegodunov/Solver.hpp"
 #include "shammodels/amr/basegodunov/modules/SolverStorage.hpp"
-#include "shamrock/scheduler/PatchScheduler.hpp"
 
 namespace shammodels::basegodunov::modules {
 

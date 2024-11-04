@@ -14,11 +14,8 @@
  */
 
 #include "shambase/memory.hpp"
-#include "shambackends/typeAliasVec.hpp"
-#include "shammodels/amr/basegodunov/modules/ComputePseudoGradient.hpp"
 #include "shammodels/amr/basegodunov/modules/ModifiedSecondDerivative.hpp"
 #include "shamrock/scheduler/SchedulerUtility.hpp"
-#include <utility>
 
 using AMRGraphLinkiterator = shammodels::basegodunov::modules::AMRGraphLinkiterator;
 
@@ -72,7 +69,9 @@ inline T modif_second_derivative(
     T res_z = g_sycl_abs(delta_u_zm + delta_u_zp)
               / (g_sycl_abs(delta_u_zm) + g_sycl_abs(delta_u_zp) + eps_ref * scalar_z + epsilon);
 
-    return g_sycl_max(res_x, g_sycl_max(res_y, res_z)) * delta_cell;
+    // return g_sycl_max(res_x, g_sycl_max(res_y, res_z)) * delta_cell;
+    // return g_sycl_max(res_x, g_sycl_max(res_y, res_z));
+    return (res_x + res_y + res_z);
 }
 
 template<class Tvec, class TgridVec>
@@ -194,4 +193,4 @@ void shammodels::basegodunov::modules::ModifiedSecondDerivative<Tvec, TgridVec>:
     storage.sec_der_press.set(std::move(result_press));
 }
 
-template class shammodels::basegodunov::modules::ComputePseudoGradient<f64_3, i64_3>;
+template class shammodels::basegodunov::modules::ModifiedSecondDerivative<f64_3, i64_3>;

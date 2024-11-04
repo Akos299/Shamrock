@@ -14,12 +14,12 @@ model = shamrock.get_AMRGodunov(
 
 model.init_scheduler(int(1e7),1)
 
-multx = 2
+multx = 1
 multy = 1
 multz = 1
 
-cell_size = 1 << 6  # refinement is limited to cell_size = 2
-base = 8
+cell_size = 1 << 4  # refinement is limited to cell_size = 2
+base = 16
 model.make_base_grid((0,0,0),(cell_size,cell_size,cell_size),(base*multx,base*multy,base*multz))
 
 cfg = model.gen_default_config()
@@ -40,11 +40,13 @@ cfg.set_face_time_interpolation(True)
 # mass_crit = 0.0000001*5*2*2
 # cfg.set_amr_mode_density_based(crit_mass=mass_crit)
 
-# error_min = 0.0000004
-# error_max = 0.000005
-error_min = 0.001
-error_max = 0.5
-cfg.set_amr_mode_pseudo_gradient(error_min, error_max)
+# error_min = 0.001
+# error_max = 0.5
+# cfg.set_amr_mode_pseudo_gradient(error_min, error_max)
+
+critTorefine = 0.1
+critToderefine=0.05
+cfg.set_amr_mode_second_derivative(critTorefine, critToderefine)
 model.set_config(cfg)
 
 
@@ -91,15 +93,15 @@ model.set_field_value_lambda_f64("rho", rho_map)
 model.set_field_value_lambda_f64("rhoetot", rhoetot_map)
 model.set_field_value_lambda_f64_3("rhovel", rhovel_map)
 
-t_target = 0.245
+t_target = 0.045
 
 #for i in range(1000):
 #    model.dump_vtk(f"test{i:04d}.vtk")
 #    model.timestep()
 
-model.evolve_once_override_time(0.,0.)
-model.evolve_once_override_time(0.,0.)
-model.evolve_once_override_time(0.,0.)
+# model.evolve_once_override_time(0.,0.)
+# model.evolve_once_override_time(0.,0.)
+# model.evolve_once_override_time(0.,0.)
 
 model.evolve_until(t_target)
 
