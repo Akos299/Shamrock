@@ -52,6 +52,10 @@ namespace shammodels::basegodunov {
         PatchScheduler &sched;
         BCConfig ghost_config;
 
+        ShamrockCtx &context;
+        Config &solver_config;
+        Storage &storage;
+
         public:
         struct InterfaceBuildInfos {
             TgridVec offset;
@@ -66,8 +70,15 @@ namespace shammodels::basegodunov {
         };
 
         using GeneratorMap = shambase::DistributedDataShared<InterfaceBuildInfos>;
-        BasicGhostHandler(PatchScheduler &sched, BCConfig ghost_config)
-            : sched(sched), ghost_config(ghost_config) {}
+
+        BasicGhostHandler(
+            ShamrockCtx &context,
+            Storage &storage,
+            PatchScheduler &sched,
+            Config &solver_config,
+            BCConfig ghost_config)
+            : context(context), storage(storage), sched(sched), solver_config(solver_config),
+              ghost_config(ghost_config) {}
 
         /**
          * @brief Find interfaces
@@ -76,7 +87,8 @@ namespace shammodels::basegodunov {
          *
          *
          */
-        auto find_interfaces(PatchScheduler &sched, SerialPatchTree<TgridVec> &sptree);
+        template<Direction dir>
+        auto find_interfaces_dir(PatchScheduler &sched, SerialPatchTree<TgridVec> &sptree);
 
         /**
          * @brief
@@ -108,6 +120,15 @@ namespace shammodels::basegodunov {
         template<class T>
         shambase::DistributedDataShared<T> build_interface_native(
             std::function<T(u64, u64, InterfaceBuildInfos, sycl::buffer<u32> &, u32)> fct);
+    };
+
+    enum Direction {
+        xp = 0,
+        xm = 1,
+        yp = 2,
+        ym = 3,
+        zp = 4,
+        zm = 5,
     };
 
 } // namespace shammodels::basegodunov
