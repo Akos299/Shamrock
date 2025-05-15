@@ -27,7 +27,16 @@
 #include "shamrock/scheduler/PatchScheduler.hpp"
 #include "variant"
 
-namespace shammodels::basegodunov {
+namespace shammodels::basegodunov::modules {
+
+    enum GhostDir {
+        xp = 0,
+        xm = 1,
+        yp = 2,
+        ym = 3,
+        zp = 4,
+        zm = 5,
+    };
 
     template<class Tvec>
     struct BasicGhostHandlerConfig {
@@ -87,8 +96,8 @@ namespace shammodels::basegodunov {
          *
          *
          */
-        template<Direction dir>
-        auto find_interfaces_dir(PatchScheduler &sched, SerialPatchTree<TgridVec> &sptree);
+        auto find_interfaces_dir(
+            PatchScheduler &sched, SerialPatchTree<TgridVec> &sptree, GhostDir &dir);
 
         /**
          * @brief
@@ -101,14 +110,15 @@ namespace shammodels::basegodunov {
          */
         shambase::DistributedDataShared<shamrock::patch::PatchData> communicate_pdat(
             shamrock::patch::PatchDataLayout &pdl,
-            shambase::DistributedShared<shamrock::patch::PatchData> &&interf)
+            shambase::DistributedDataShared<shamrock::patch::PatchData> &&interf);
 
-            /**
-             * @brief
-             */
+        /**
+         * @brief
+         */
 
-            template<class T>
-            communicate_pdat_field(shambase::DistributedDataShared<PatchDataField<T>> &&interf);
+        template<class T>
+        shambase::DistributedDataShared<PatchDataField<T>>
+        communicate_pdat_field(shambase::DistributedDataShared<PatchDataField<T>> &&interf);
 
         /**
          * @brief
@@ -122,13 +132,4 @@ namespace shammodels::basegodunov {
             std::function<T(u64, u64, InterfaceBuildInfos, sycl::buffer<u32> &, u32)> fct);
     };
 
-    enum Direction {
-        xp = 0,
-        xm = 1,
-        yp = 2,
-        ym = 3,
-        zp = 4,
-        zm = 5,
-    };
-
-} // namespace shammodels::basegodunov
+} // namespace shammodels::basegodunov::modules

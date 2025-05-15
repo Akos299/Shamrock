@@ -22,16 +22,15 @@
 #include "shammath/AABB.hpp"
 #include "shammath/CoordRange.hpp"
 #include "shammodels/ramses/BasicGhosts.hpp"
+#include "shammodels/ramses/modules/BasicGhosts.hpp"
 #include "shamrock/scheduler/InterfacesUtility.hpp"
 #include "shamsys/NodeInstance.hpp"
 #include "shamsys/legacy/log.hpp"
 
-using namespace shammodels::basegodunov;
-using Direction = shammodels::basegodunov::Direction;
+template<class Tvec, class TgridVec, shammodels::basegodunov::modules::GhostDir dir>
 
-template<class Tvec, class TgridVec>
-auto BasicGhostHandler<Tvec, TgridVec>::find_interfaces_dir<Direction dir>(
-    PatchScheduler &sched, SerialPatchTree<TgridVec> &sptree) {
+auto shammodels::basegodunov::modules::BasicGhostHandler<Tvec, TgridVec>::find_interfaces_dir<
+    GhostDir dir>(PatchScheduler &sched, SerialPatchTree<TgridVec> &sptree) {
     StackEntry stack_loc{};
     using namespace shamrock::patch;
     using namespace shammath;
@@ -55,301 +54,287 @@ auto BasicGhostHandler<Tvec, TgridVec>::find_interfaces_dir<Direction dir>(
     if (BCPeriodic *cfg = std::get_if<BCPeriodic>(&ghost_config)) {
 
         if constexpr (dir == Direction::xp) {
-            for (i32 xoff = 0; xoff <= repetition_x; xoff++) {
-                for (i32 yoff = -repetition_y; yoff <= repetition_y; yoff++) {
-                    for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
+            i32 xoff = repetition_x;
+            for (i32 yoff = -repetition_y; yoff <= repetition_y; yoff++) {
+                for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
 
-                        TgridVec _offset
-                            = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
+                    TgridVec _offset
+                        = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
 
-                        /** May be get a big buffer for all translate patches for all direction and
-                         * boundary condition and just perform the search on it */
+                    /** May be get a big buffer for all translate patches for all direction and
+                     * boundary condition and just perform the search on it */
 
-                        sched.for_each_local_patch([&](const Patch psender) {
-                            CoordRange<TgridVec> sender_bsize
-                                = patch_coord_transf.to_obj_coord(psender);
-                            CoordRange<TgridVec> sender_bsize_off
-                                = sender_bsize.add_offset(_offset);
+                    sched.for_each_local_patch([&](const Patch psender) {
+                        CoordRange<TgridVec> sender_bsize
+                            = patch_coord_transf.to_obj_coord(psender);
+                        CoordRange<TgridVec> sender_bsize_off = sender_bsize.add_offset(_offset);
 
-                            shammath::AABB<TgridVec> sender_bsize_off_aabb{
-                                sender_bsize_off.lower, sender_bsize_off.upper};
+                        shammath::AABB<TgridVec> sender_bsize_off_aabb{
+                            sender_bsize_off.lower, sender_bsize_off.upper};
 
-                            using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
+                        using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
 
-                            sptree.host_for_each_leafs(
-                                [&](u64 tree_id, PtNode n) {
-                                    shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
-                                    bool result = tree_cell.get_intersect(sender_bsize_off_aabb)
-                                                      .is_not_empty();
-                                    return result;
-                                },
+                        sptree.host_for_each_leafs(
+                            [&](u64 tree_id, PtNode n) {
+                                shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
+                                bool result
+                                    = tree_cell.get_intersect(sender_bsize_off_aabb).is_not_empty();
+                                return result;
+                            },
 
-                                [&](u64 id_found, PtNode n) {
-                                    if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
-                                        && (zoff = 0)) {
-                                        return;
-                                    }
+                            [&](u64 id_found, PtNode n) {
+                                if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
+                                    && (zoff = 0)) {
+                                    return;
+                                }
 
-                                    InterfaceBuildInfos ret{
-                                        _offset,
-                                        {xoff, yoff, zoff},
-                                        shammath::AABB<TgridVec>{
-                                            n.box_min - _offset, n.box_max - _offset}};
+                                InterfaceBuildInfos ret{
+                                    _offset,
+                                    {xoff, yoff, zoff},
+                                    shammath::AABB<TgridVec>{
+                                        n.box_min - _offset, n.box_max - _offset}};
 
-                                    results.add_obj(psender.id_patch, id_found, std::move(ret));
-                                });
-                        });
-                    }
+                                results.add_obj(psender.id_patch, id_found, std::move(ret));
+                            });
+                    });
                 }
             }
         }
 
         if constexpr (dir == Direction::xm) {
-            for (i32 xoff = -repetition_x; xoff <= 0; xoff++) {
-                for (i32 yoff = -repetition_y; yoff <= repetition_y; yoff++) {
-                    for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
+            i32 xoff = -repetition_x;
+            for (i32 yoff = -repetition_y; yoff <= repetition_y; yoff++) {
+                for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
 
-                        TgridVec _offset
-                            = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
+                    TgridVec _offset
+                        = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
 
-                        /** May be get a big buffer for all translate patches for all direction and
-                         * boundary condition and just perform the search on it */
+                    /** May be get a big buffer for all translate patches for all direction and
+                     * boundary condition and just perform the search on it */
 
-                        sched.for_each_local_patch([&](const Patch psender) {
-                            CoordRange<TgridVec> sender_bsize
-                                = patch_coord_transf.to_obj_coord(psender);
-                            CoordRange<TgridVec> sender_bsize_off
-                                = sender_bsize.add_offset(_offset);
+                    sched.for_each_local_patch([&](const Patch psender) {
+                        CoordRange<TgridVec> sender_bsize
+                            = patch_coord_transf.to_obj_coord(psender);
+                        CoordRange<TgridVec> sender_bsize_off = sender_bsize.add_offset(_offset);
 
-                            shammath::AABB<TgridVec> sender_bsize_off_aabb{
-                                sender_bsize_off.lower, sender_bsize_off.upper};
+                        shammath::AABB<TgridVec> sender_bsize_off_aabb{
+                            sender_bsize_off.lower, sender_bsize_off.upper};
 
-                            using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
+                        using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
 
-                            sptree.host_for_each_leafs(
-                                [&](u64 tree_id, PtNode n) {
-                                    shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
-                                    bool result = tree_cell.get_intersect(sender_bsize_off_aabb)
-                                                      .is_not_empty();
-                                    return result;
-                                },
+                        sptree.host_for_each_leafs(
+                            [&](u64 tree_id, PtNode n) {
+                                shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
+                                bool result
+                                    = tree_cell.get_intersect(sender_bsize_off_aabb).is_not_empty();
+                                return result;
+                            },
 
-                                [&](u64 id_found, PtNode n) {
-                                    if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
-                                        && (zoff = 0)) {
-                                        return;
-                                    }
+                            [&](u64 id_found, PtNode n) {
+                                if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
+                                    && (zoff = 0)) {
+                                    return;
+                                }
 
-                                    InterfaceBuildInfos ret{
-                                        _offset,
-                                        {xoff, yoff, zoff},
-                                        shammath::AABB<TgridVec>{
-                                            n.box_min - _offset, n.box_max - _offset}};
+                                InterfaceBuildInfos ret{
+                                    _offset,
+                                    {xoff, yoff, zoff},
+                                    shammath::AABB<TgridVec>{
+                                        n.box_min - _offset, n.box_max - _offset}};
 
-                                    results.add_obj(psender.id_patch, id_found, std::move(ret));
-                                });
-                        });
-                    }
+                                results.add_obj(psender.id_patch, id_found, std::move(ret));
+                            });
+                    });
                 }
             }
         }
 
         if constexpr (dir == Direction::yp) {
+            i32 yoff = repetition_y;
             for (i32 xoff = -repetition_x; xoff <= repetition_x; xoff++) {
-                for (i32 yoff = 0; yoff <= repetition_y; yoff++) {
-                    for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
+                for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
 
-                        TgridVec _offset
-                            = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
+                    TgridVec _offset
+                        = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
 
-                        /** May be get a big buffer for all translate patches for all direction and
-                         * boundary condition and just perform the search on it */
+                    /** May be get a big buffer for all translate patches for all direction and
+                     * boundary condition and just perform the search on it */
 
-                        sched.for_each_local_patch([&](const Patch psender) {
-                            CoordRange<TgridVec> sender_bsize
-                                = patch_coord_transf.to_obj_coord(psender);
-                            CoordRange<TgridVec> sender_bsize_off
-                                = sender_bsize.add_offset(_offset);
+                    sched.for_each_local_patch([&](const Patch psender) {
+                        CoordRange<TgridVec> sender_bsize
+                            = patch_coord_transf.to_obj_coord(psender);
+                        CoordRange<TgridVec> sender_bsize_off = sender_bsize.add_offset(_offset);
 
-                            shammath::AABB<TgridVec> sender_bsize_off_aabb{
-                                sender_bsize_off.lower, sender_bsize_off.upper};
+                        shammath::AABB<TgridVec> sender_bsize_off_aabb{
+                            sender_bsize_off.lower, sender_bsize_off.upper};
 
-                            using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
+                        using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
 
-                            sptree.host_for_each_leafs(
-                                [&](u64 tree_id, PtNode n) {
-                                    shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
-                                    bool result = tree_cell.get_intersect(sender_bsize_off_aabb)
-                                                      .is_not_empty();
-                                    return result;
-                                },
+                        sptree.host_for_each_leafs(
+                            [&](u64 tree_id, PtNode n) {
+                                shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
+                                bool result
+                                    = tree_cell.get_intersect(sender_bsize_off_aabb).is_not_empty();
+                                return result;
+                            },
 
-                                [&](u64 id_found, PtNode n) {
-                                    if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
-                                        && (zoff = 0)) {
-                                        return;
-                                    }
+                            [&](u64 id_found, PtNode n) {
+                                if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
+                                    && (zoff = 0)) {
+                                    return;
+                                }
 
-                                    InterfaceBuildInfos ret{
-                                        _offset,
-                                        {xoff, yoff, zoff},
-                                        shammath::AABB<TgridVec>{
-                                            n.box_min - _offset, n.box_max - _offset}};
+                                InterfaceBuildInfos ret{
+                                    _offset,
+                                    {xoff, yoff, zoff},
+                                    shammath::AABB<TgridVec>{
+                                        n.box_min - _offset, n.box_max - _offset}};
 
-                                    results.add_obj(psender.id_patch, id_found, std::move(ret));
-                                });
-                        });
-                    }
+                                results.add_obj(psender.id_patch, id_found, std::move(ret));
+                            });
+                    });
                 }
             }
         }
 
         if constexpr (dir == Direction::ym) {
+            i32 yoff = -repetition_y;
             for (i32 xoff = -repetition_x; xoff <= repetition_x; xoff++) {
-                for (i32 yoff = -repetition_y; yoff <= 0; yoff++) {
-                    for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
+                for (i32 zoff = -repetition_z; zoff <= repetition_z; zoff++) {
 
-                        TgridVec _offset
-                            = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
+                    TgridVec _offset
+                        = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
 
-                        /** May be get a big buffer for all translate patches for all direction and
-                         * boundary condition and just perform the search on it */
+                    /** May be get a big buffer for all translate patches for all direction and
+                     * boundary condition and just perform the search on it */
 
-                        sched.for_each_local_patch([&](const Patch psender) {
-                            CoordRange<TgridVec> sender_bsize
-                                = patch_coord_transf.to_obj_coord(psender);
-                            CoordRange<TgridVec> sender_bsize_off
-                                = sender_bsize.add_offset(_offset);
+                    sched.for_each_local_patch([&](const Patch psender) {
+                        CoordRange<TgridVec> sender_bsize
+                            = patch_coord_transf.to_obj_coord(psender);
+                        CoordRange<TgridVec> sender_bsize_off = sender_bsize.add_offset(_offset);
 
-                            shammath::AABB<TgridVec> sender_bsize_off_aabb{
-                                sender_bsize_off.lower, sender_bsize_off.upper};
+                        shammath::AABB<TgridVec> sender_bsize_off_aabb{
+                            sender_bsize_off.lower, sender_bsize_off.upper};
 
-                            using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
+                        using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
 
-                            sptree.host_for_each_leafs(
-                                [&](u64 tree_id, PtNode n) {
-                                    shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
-                                    bool result = tree_cell.get_intersect(sender_bsize_off_aabb)
-                                                      .is_not_empty();
-                                    return result;
-                                },
+                        sptree.host_for_each_leafs(
+                            [&](u64 tree_id, PtNode n) {
+                                shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
+                                bool result
+                                    = tree_cell.get_intersect(sender_bsize_off_aabb).is_not_empty();
+                                return result;
+                            },
 
-                                [&](u64 id_found, PtNode n) {
-                                    if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
-                                        && (zoff = 0)) {
-                                        return;
-                                    }
+                            [&](u64 id_found, PtNode n) {
+                                if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
+                                    && (zoff = 0)) {
+                                    return;
+                                }
 
-                                    InterfaceBuildInfos ret{
-                                        _offset,
-                                        {xoff, yoff, zoff},
-                                        shammath::AABB<TgridVec>{
-                                            n.box_min - _offset, n.box_max - _offset}};
+                                InterfaceBuildInfos ret{
+                                    _offset,
+                                    {xoff, yoff, zoff},
+                                    shammath::AABB<TgridVec>{
+                                        n.box_min - _offset, n.box_max - _offset}};
 
-                                    results.add_obj(psender.id_patch, id_found, std::move(ret));
-                                });
-                        });
-                    }
+                                results.add_obj(psender.id_patch, id_found, std::move(ret));
+                            });
+                    });
                 }
             }
         }
 
         if constexpr (dir == Direction::zp) {
+            i32 zoff = repetition_z;
             for (i32 xoff = -repetition_x; xoff <= repetition_x; xoff++) {
                 for (i32 yoff = -repetition_y; yoff <= repetition_y; yoff++) {
-                    for (i32 zoff = 0; zoff <= repetition_z; zoff++) {
+                    TgridVec _offset
+                        = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
 
-                        TgridVec _offset
-                            = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
+                    /** May be get a big buffer for all translate patches for all direction and
+                     * boundary condition and just perform the search on it */
 
-                        /** May be get a big buffer for all translate patches for all direction and
-                         * boundary condition and just perform the search on it */
+                    sched.for_each_local_patch([&](const Patch psender) {
+                        CoordRange<TgridVec> sender_bsize
+                            = patch_coord_transf.to_obj_coord(psender);
+                        CoordRange<TgridVec> sender_bsize_off = sender_bsize.add_offset(_offset);
 
-                        sched.for_each_local_patch([&](const Patch psender) {
-                            CoordRange<TgridVec> sender_bsize
-                                = patch_coord_transf.to_obj_coord(psender);
-                            CoordRange<TgridVec> sender_bsize_off
-                                = sender_bsize.add_offset(_offset);
+                        shammath::AABB<TgridVec> sender_bsize_off_aabb{
+                            sender_bsize_off.lower, sender_bsize_off.upper};
 
-                            shammath::AABB<TgridVec> sender_bsize_off_aabb{
-                                sender_bsize_off.lower, sender_bsize_off.upper};
+                        using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
 
-                            using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
+                        sptree.host_for_each_leafs(
+                            [&](u64 tree_id, PtNode n) {
+                                shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
+                                bool result
+                                    = tree_cell.get_intersect(sender_bsize_off_aabb).is_not_empty();
+                                return result;
+                            },
 
-                            sptree.host_for_each_leafs(
-                                [&](u64 tree_id, PtNode n) {
-                                    shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
-                                    bool result = tree_cell.get_intersect(sender_bsize_off_aabb)
-                                                      .is_not_empty();
-                                    return result;
-                                },
+                            [&](u64 id_found, PtNode n) {
+                                if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
+                                    && (zoff = 0)) {
+                                    return;
+                                }
 
-                                [&](u64 id_found, PtNode n) {
-                                    if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
-                                        && (zoff = 0)) {
-                                        return;
-                                    }
+                                InterfaceBuildInfos ret{
+                                    _offset,
+                                    {xoff, yoff, zoff},
+                                    shammath::AABB<TgridVec>{
+                                        n.box_min - _offset, n.box_max - _offset}};
 
-                                    InterfaceBuildInfos ret{
-                                        _offset,
-                                        {xoff, yoff, zoff},
-                                        shammath::AABB<TgridVec>{
-                                            n.box_min - _offset, n.box_max - _offset}};
-
-                                    results.add_obj(psender.id_patch, id_found, std::move(ret));
-                                });
-                        });
-                    }
+                                results.add_obj(psender.id_patch, id_found, std::move(ret));
+                            });
+                    });
                 }
             }
         }
 
         if constexpr (dir == Direction::zm) {
+            i32 zoff = -repetition_z;
             for (i32 xoff = -repetition_x; xoff <= repetition_x; xoff++) {
                 for (i32 yoff = -repetition_y; yoff <= repetition_y; yoff++) {
-                    for (i32 zoff = -repetition_z; zoff <= 0; zoff++) {
+                    TgridVec _offset
+                        = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
 
-                        TgridVec _offset
-                            = TgridVec{xoff * bsize.x(), yoff * bsize.y(), zoff * bsize.z()};
+                    /** May be get a big buffer for all translate patches for all direction and
+                     * boundary condition and just perform the search on it */
 
-                        /** May be get a big buffer for all translate patches for all direction and
-                         * boundary condition and just perform the search on it */
+                    sched.for_each_local_patch([&](const Patch psender) {
+                        CoordRange<TgridVec> sender_bsize
+                            = patch_coord_transf.to_obj_coord(psender);
+                        CoordRange<TgridVec> sender_bsize_off = sender_bsize.add_offset(_offset);
 
-                        sched.for_each_local_patch([&](const Patch psender) {
-                            CoordRange<TgridVec> sender_bsize
-                                = patch_coord_transf.to_obj_coord(psender);
-                            CoordRange<TgridVec> sender_bsize_off
-                                = sender_bsize.add_offset(_offset);
+                        shammath::AABB<TgridVec> sender_bsize_off_aabb{
+                            sender_bsize_off.lower, sender_bsize_off.upper};
 
-                            shammath::AABB<TgridVec> sender_bsize_off_aabb{
-                                sender_bsize_off.lower, sender_bsize_off.upper};
+                        using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
 
-                            using PtNode = typename SerialPatchTree<TgridVec>::PtNode;
+                        sptree.host_for_each_leafs(
+                            [&](u64 tree_id, PtNode n) {
+                                shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
+                                bool result
+                                    = tree_cell.get_intersect(sender_bsize_off_aabb).is_not_empty();
+                                return result;
+                            },
 
-                            sptree.host_for_each_leafs(
-                                [&](u64 tree_id, PtNode n) {
-                                    shammath::AABB<TgridVec> tree_cell{n.box_min, n.box_max};
-                                    bool result = tree_cell.get_intersect(sender_bsize_off_aabb)
-                                                      .is_not_empty();
-                                    return result;
-                                },
+                            [&](u64 id_found, PtNode n) {
+                                if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
+                                    && (zoff = 0)) {
+                                    return;
+                                }
 
-                                [&](u64 id_found, PtNode n) {
-                                    if ((id_found == psender.id_patch) && (xoff == 0) && (yoff = 0)
-                                        && (zoff = 0)) {
-                                        return;
-                                    }
+                                InterfaceBuildInfos ret{
+                                    _offset,
+                                    {xoff, yoff, zoff},
+                                    shammath::AABB<TgridVec>{
+                                        n.box_min - _offset, n.box_max - _offset}};
 
-                                    InterfaceBuildInfos ret{
-                                        _offset,
-                                        {xoff, yoff, zoff},
-                                        shammath::AABB<TgridVec>{
-                                            n.box_min - _offset, n.box_max - _offset}};
-
-                                    results.add_obj(psender.id_patch, id_found, std::move(ret));
-                                });
-                        });
-                    }
+                                results.add_obj(psender.id_patch, id_found, std::move(ret));
+                            });
+                    });
                 }
             }
         }
