@@ -129,12 +129,13 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::interpol
             Tvec dy_v_b = acc_dy_v_cell[id_b];
             Tvec dz_v_b = acc_dz_v_cell[id_b];
 
-            Tscal rho_face_a
-                = rho_a + sycl::dot(grad_rho_a, shift_a)
-                  + get_dt_rho(rho_a, vel_a, grad_rho_a, dx_v_a, dy_v_a, dz_v_a) * dt_interp;
-            Tscal rho_face_b
-                = rho_b + sycl::dot(grad_rho_b, shift_b)
-                  + get_dt_rho(rho_a, vel_a, grad_rho_a, dx_v_a, dy_v_a, dz_v_a) * dt_interp;
+            // Spatial interpolate
+            Tscal rho_face_a = rho_a + sycl::dot(grad_rho_a, shift_a);
+            Tscal rho_face_b = rho_b + sycl::dot(grad_rho_b, shift_b);
+
+            // Interpolate also to half a timestep
+            rho_face_a += get_dt_rho(rho_a, vel_a, grad_rho_a, dx_v_a, dy_v_a, dz_v_a) * dt_interp;
+            rho_face_b += get_dt_rho(rho_b, vel_b, grad_rho_b, dx_v_b, dy_v_b, dz_v_b) * dt_interp;
 
             return {rho_face_a, rho_face_b};
         }
@@ -166,7 +167,7 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::interpol
         sham::DeviceBuffer<Tscal> &buf_rho     = mpdat.pdat.get_field_buf_ref<Tscal>(irho_ghost);
         sham::DeviceBuffer<Tvec> &buf_grad_rho = storage.grad_rho.get().get_buf(id);
 
-        sham::DeviceBuffer<Tvec> &buf_vel    = storage.vel.get().get_buf(id);
+        sham::DeviceBuffer<Tvec> &buf_vel    = shambase::get_check_ref(storage.vel).get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dx_vel = storage.dx_v.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dy_vel = storage.dy_v.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dz_vel = storage.dz_v.get().get_buf(id);
@@ -398,7 +399,7 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::interpol
         sham::DeviceBuffer<Tvec> &cell0block_aabb_lower
             = storage.cell_infos.get().cell0block_aabb_lower.get_buf_check(id);
 
-        sham::DeviceBuffer<Tvec> &buf_vel    = storage.vel.get().get_buf(id);
+        sham::DeviceBuffer<Tvec> &buf_vel    = shambase::get_check_ref(storage.vel).get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dx_vel = storage.dx_v.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dy_vel = storage.dy_v.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dz_vel = storage.dz_v.get().get_buf(id);
@@ -631,10 +632,10 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::interpol
         sham::DeviceBuffer<Tvec> &cell0block_aabb_lower
             = storage.cell_infos.get().cell0block_aabb_lower.get_buf_check(id);
 
-        sham::DeviceBuffer<Tscal> &buf_press = storage.press.get().get_buf(id);
+        sham::DeviceBuffer<Tscal> &buf_press = shambase::get_check_ref(storage.press).get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_grad_P = storage.grad_P.get().get_buf(id);
 
-        sham::DeviceBuffer<Tvec> &buf_vel    = storage.vel.get().get_buf(id);
+        sham::DeviceBuffer<Tvec> &buf_vel    = shambase::get_check_ref(storage.vel).get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dx_vel = storage.dx_v.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dy_vel = storage.dy_v.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dz_vel = storage.dz_v.get().get_buf(id);
@@ -848,24 +849,25 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::
             Tvec dy_v_dust_b = acc_dy_v_dust_cell[id_b];
             Tvec dz_v_dust_b = acc_dz_v_dust_cell[id_b];
 
-            Tscal rho_dust_face_a = rho_dust_a + sycl::dot(grad_rho_dust_a, shift_a)
-                                    + get_dt_rho_dust(
-                                          rho_dust_a,
-                                          vel_dust_a,
-                                          grad_rho_dust_a,
-                                          dx_v_dust_a,
-                                          dy_v_dust_a,
-                                          dz_v_dust_a)
-                                          * dt_interp;
-            Tscal rho_dust_face_b = rho_dust_b + sycl::dot(grad_rho_dust_b, shift_b)
-                                    + get_dt_rho_dust(
-                                          rho_dust_a,
-                                          vel_dust_a,
-                                          grad_rho_dust_a,
-                                          dx_v_dust_a,
-                                          dy_v_dust_a,
-                                          dz_v_dust_a)
-                                          * dt_interp;
+            Tscal rho_dust_face_a = rho_dust_a + sycl::dot(grad_rho_dust_a, shift_a);
+            Tscal rho_dust_face_b = rho_dust_b + sycl::dot(grad_rho_dust_b, shift_b);
+
+            rho_dust_face_a += get_dt_rho_dust(
+                                   rho_dust_a,
+                                   vel_dust_a,
+                                   grad_rho_dust_a,
+                                   dx_v_dust_a,
+                                   dy_v_dust_a,
+                                   dz_v_dust_a)
+                               * dt_interp;
+            rho_dust_face_b += get_dt_rho_dust(
+                                   rho_dust_b,
+                                   vel_dust_b,
+                                   grad_rho_dust_b,
+                                   dx_v_dust_b,
+                                   dy_v_dust_b,
+                                   dz_v_dust_b)
+                               * dt_interp;
 
             return {rho_dust_face_a, rho_dust_face_b};
         }
@@ -899,7 +901,8 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::
             = mpdat.pdat.get_field_buf_ref<Tscal>(irho_dust_ghost);
         sham::DeviceBuffer<Tvec> &buf_grad_rho_dust = storage.grad_rho_dust.get().get_buf(id);
 
-        sham::DeviceBuffer<Tvec> &buf_vel_dust    = storage.vel_dust.get().get_buf(id);
+        sham::DeviceBuffer<Tvec> &buf_vel_dust
+            = shambase::get_check_ref(storage.vel_dust).get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dx_vel_dust = storage.dx_v_dust.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dy_vel_dust = storage.dy_v_dust.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dz_vel_dust = storage.dz_v_dust.get().get_buf(id);
@@ -1141,7 +1144,8 @@ void shammodels::basegodunov::modules::FaceInterpolate<Tvec, TgridVec>::interpol
         sham::DeviceBuffer<Tvec> &cell0block_aabb_lower
             = storage.cell_infos.get().cell0block_aabb_lower.get_buf_check(id);
 
-        sham::DeviceBuffer<Tvec> &buf_vel_dust    = storage.vel_dust.get().get_buf(id);
+        sham::DeviceBuffer<Tvec> &buf_vel_dust
+            = shambase::get_check_ref(storage.vel_dust).get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dx_vel_dust = storage.dx_v_dust.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dy_vel_dust = storage.dy_v_dust.get().get_buf(id);
         sham::DeviceBuffer<Tvec> &buf_dz_vel_dust = storage.dz_v_dust.get().get_buf(id);

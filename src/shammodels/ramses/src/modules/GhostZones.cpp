@@ -222,11 +222,11 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::communicate_pdat(
             pdat.serialize_buf(ser);
             return ser.finalize();
         },
-        [&](std::unique_ptr<sycl::buffer<u8>> &&buf) {
+        [&](sham::DeviceBuffer<u8> &&buf) {
             // exchange the buffer held by the distrib data and give it to the serializer
             shamalgs::SerializeHelper ser(
                 shamsys::instance::get_compute_scheduler_ptr(),
-                std::forward<std::unique_ptr<sycl::buffer<u8>>>(buf));
+                std::forward<sham::DeviceBuffer<u8>>(buf));
             return shamrock::patch::PatchData::deserialize_buf(ser, pdl);
         });
 
@@ -255,11 +255,11 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::communicate_pdat_f
             pdat.serialize_buf(ser);
             return ser.finalize();
         },
-        [&](std::unique_ptr<sycl::buffer<u8>> &&buf) {
+        [&](sham::DeviceBuffer<u8> &&buf) {
             // exchange the buffer held by the distrib data and give it to the serializer
             shamalgs::SerializeHelper ser(
                 shamsys::instance::get_compute_scheduler_ptr(),
-                std::forward<std::unique_ptr<sycl::buffer<u8>>>(buf));
+                std::forward<sham::DeviceBuffer<u8>>(buf));
             return PatchDataField<T>::deserialize_full(ser);
         });
 
@@ -445,6 +445,70 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_ghos
 
     timer_interf.end();
     storage.timings_details.interface += timer_interf.elasped_sec();
+
+    // TODO this should be output nodes from basic ghost ideally
+
+    { // set element counts
+        using MergedPDat = shamrock::MergedPatchData;
+
+        shambase::get_check_ref(storage.block_counts_with_ghost).indexes
+            = storage.merged_patchdata_ghost.get().template map<u32>(
+                [&](u64 id, MergedPDat &mpdat) {
+                    return mpdat.total_elements;
+                });
+    }
+
+    { // attach spans to gas field with ghosts
+        using MergedPDat                               = shamrock::MergedPatchData;
+        shamrock::patch::PatchDataLayout &ghost_layout = storage.ghost_layout.get();
+        u32 irho_ghost                                 = ghost_layout.get_field_idx<Tscal>("rho");
+        u32 irhov_ghost                                = ghost_layout.get_field_idx<Tvec>("rhovel");
+        u32 irhoe_ghost = ghost_layout.get_field_idx<Tscal>("rhoetot");
+
+        storage.refs_rho->set_refs(storage.merged_patchdata_ghost.get()
+                                       .template map<std::reference_wrapper<PatchDataField<Tscal>>>(
+                                           [&](u64 id, MergedPDat &mpdat) {
+                                               return std::ref(
+                                                   mpdat.pdat.get_field<Tscal>(irho_ghost));
+                                           }));
+
+        storage.refs_rhov->set_refs(storage.merged_patchdata_ghost.get()
+                                        .template map<std::reference_wrapper<PatchDataField<Tvec>>>(
+                                            [&](u64 id, MergedPDat &mpdat) {
+                                                return std::ref(
+                                                    mpdat.pdat.get_field<Tvec>(irhov_ghost));
+                                            }));
+
+        storage.refs_rhoe->set_refs(
+            storage.merged_patchdata_ghost.get()
+                .template map<std::reference_wrapper<PatchDataField<Tscal>>>(
+                    [&](u64 id, MergedPDat &mpdat) {
+                        return std::ref(mpdat.pdat.get_field<Tscal>(irhoe_ghost));
+                    }));
+    }
+
+    if (solver_config.is_dust_on()) { // attach spans to dust field with ghosts
+        using MergedPDat                               = shamrock::MergedPatchData;
+        u32 ndust                                      = solver_config.dust_config.ndust;
+        shamrock::patch::PatchDataLayout &ghost_layout = storage.ghost_layout.get();
+
+        u32 irho_dust_ghost  = ghost_layout.get_field_idx<Tscal>("rho_dust");
+        u32 irhov_dust_ghost = ghost_layout.get_field_idx<Tvec>("rhovel_dust");
+
+        storage.refs_rho_dust->set_refs(
+            storage.merged_patchdata_ghost.get()
+                .template map<std::reference_wrapper<PatchDataField<Tscal>>>(
+                    [&](u64 id, MergedPDat &mpdat) {
+                        return std::ref(mpdat.pdat.get_field<Tscal>(irho_dust_ghost));
+                    }));
+
+        storage.refs_rhov_dust->set_refs(
+            storage.merged_patchdata_ghost.get()
+                .template map<std::reference_wrapper<PatchDataField<Tvec>>>(
+                    [&](u64 id, MergedPDat &mpdat) {
+                        return std::ref(mpdat.pdat.get_field<Tvec>(irhov_dust_ghost));
+                    }));
+    }
 }
 
 template<class Tvec, class TgridVec>

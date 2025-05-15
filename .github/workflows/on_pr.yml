@@ -3,6 +3,16 @@ name: on PR
 # Controls when the workflow will run
 on: [pull_request]
 
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository_owner }}
+
+concurrency:
+  group: ci-${{github.ref}}-${{github.event.pull_request.number || github.run_number}}
+  cancel-in-progress: true
+
 jobs:
 
   make_code_archive:
@@ -93,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/shamrock-code/ci-ubuntu-latest:main
+      image: ghcr.io/shamrock-code/shamrock-ci:ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -254,3 +264,8 @@ jobs:
     uses: ./.github/workflows/make_website.yml
     with:
       upload-page-artifact: false
+
+  build_push_docker:
+    name: Build dockerfiles
+    needs: [shamrock_linux_dpcpp]
+    uses: ./.github/workflows/build-dockerfiles.yml

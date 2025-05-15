@@ -15,14 +15,14 @@
  */
 
 #include "shambase/popen.hpp"
+#include "shambase/print.hpp"
+#include "shambindings/pybindaliases.hpp"
+#include "shambindings/pybindings.hpp"
+#include "shambindings/start_python.hpp"
+#include <pybind11/embed.h>
 #include <cstdlib>
 #include <optional>
-#if defined(DOXYGEN) || defined(SHAMROCK_EXECUTABLE_BUILD)
-
-    #include "shambase/print.hpp"
-    #include "shambindings/pybindaliases.hpp"
-    #include "shambindings/start_python.hpp"
-    #include <string>
+#include <string>
 
 /**
  * @brief path of the script to generate sys.path
@@ -53,6 +53,7 @@ std::optional<std::string> runtime_set_pypath = std::nullopt;
  * @return std::string The Python path to be used.
  */
 std::string get_pypath() {
+
     if (runtime_set_pypath.has_value()) {
         return runtime_set_pypath.value();
     }
@@ -90,11 +91,13 @@ namespace shambindings {
         runtime_set_pypath = shambase::popen_fetch_output(cmd.c_str());
     }
 
-    void modify_py_sys_path() {
+    void modify_py_sys_path(bool do_print) {
 
-        shambase::println(
-            "Shamrock configured with Python path : \n    "
-            + std::string(configure_time_py_executable()));
+        if (do_print) {
+            shambase::println(
+                "Shamrock configured with Python path : \n    "
+                + std::string(configure_time_py_executable()));
+        }
 
         std::string check_py
             = std::string("current_path = \"") + configure_time_py_executable() + "\"\n";
@@ -107,8 +110,9 @@ namespace shambindings {
     }
 
     void start_ipython(bool do_print) {
+
         py::scoped_interpreter guard{};
-        modify_py_sys_path();
+        modify_py_sys_path(do_print);
 
         if (do_print) {
             shambase::println("--------------------------------------------");
@@ -125,7 +129,7 @@ namespace shambindings {
 
     void run_py_file(std::string file_path, bool do_print) {
         py::scoped_interpreter guard{};
-        modify_py_sys_path();
+        modify_py_sys_path(do_print);
 
         if (do_print) {
             shambase::println("-----------------------------------");
@@ -140,5 +144,3 @@ namespace shambindings {
         }
     }
 } // namespace shambindings
-
-#endif
