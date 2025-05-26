@@ -491,6 +491,11 @@ namespace sham {
     }
 
     template<class T>
+    inline shambase::VecComponent<T> length2(T a) {
+        return dot(a, a);
+    }
+
+    template<class T>
     inline T max_8points(T v0, T v1, T v2, T v3, T v4, T v5, T v6, T v7) {
         return max(max(max(v0, v1), max(v2, v3)), max(max(v4, v5), max(v6, v7)));
     }
@@ -523,6 +528,11 @@ namespace sham {
     inline auto pack32(u32 a, u32 b) -> u64 { return (u64(a) << 32U) + b; };
 
     inline auto unpack32(u64 v) -> sycl::vec<u32, 2> { return {u32(v >> 32U), u32(v)}; };
+
+    template<class T>
+    inline T m1pown(u32 n) {
+        return (n % 2 == 0) ? T(1) : -T(1);
+    }
 
     template<class T>
     inline bool has_nan(T v) {
