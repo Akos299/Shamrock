@@ -39,6 +39,7 @@
 #include "shamsys/legacy/log.hpp"
 #include "shamtree/RadixTree.hpp"
 #include "shamtree/TreeTraversalCache.hpp"
+#include <memory>
 
 namespace shammodels::basegodunov {
 
@@ -54,6 +55,8 @@ namespace shammodels::basegodunov {
         static constexpr u32 dim = shambase::VectorProperties<Tvec>::dimension;
 
         using RTree = RadixTree<Tmorton, TgridVec>;
+
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> dt_over2;
 
         std::shared_ptr<shamrock::solvergraph::FieldRefs<TgridVec>> refs_block_min;
         std::shared_ptr<shamrock::solvergraph::FieldRefs<TgridVec>> refs_block_max;

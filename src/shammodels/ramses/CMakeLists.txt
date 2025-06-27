@@ -37,6 +37,7 @@ set(Sources
     src/modules/SlopeLimitedGradient.cpp
     src/modules/ComputeMass.cpp
     src/modules/ComputeSumOverV.cpp
+    src/modules/InterpolateToFace.cpp
     src/modules/CGInit.cpp
 )
 
