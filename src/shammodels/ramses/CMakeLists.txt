@@ -41,6 +41,12 @@ set(Sources
     src/modules/ComputeAMRLevel.cpp
     src/modules/ResidualDot.cpp
     src/modules/CGMatVecProd.cpp
+    src/modules/CGHadamardProd.cpp
+    src/modules/CGEnergyNormOfP.cpp
+    src/modules/CGComputeNewPhi.cpp
+    src/modules/CGComputeNewResidual.cpp
+    src/modules/CGComputeNewSearchDir.cpp
+    src/modules/NodeCGLoop.cpp
 )
 
 if(SHAMROCK_USE_SHARED_LIB)

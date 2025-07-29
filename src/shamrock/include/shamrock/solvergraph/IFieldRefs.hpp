@@ -46,7 +46,7 @@ namespace shamrock::solvergraph {
         /// Get the DistributedData of PatchDataFieldRefs
         virtual DDPatchDataFieldRef<T> &get_refs() = 0;
 
-        /// Const variant of get_refs
+        /// Const variant of get_refsxx
         virtual const DDPatchDataFieldRef<T> &get_refs() const = 0;
 
         /// Get the underlying PatchDataField at the given id

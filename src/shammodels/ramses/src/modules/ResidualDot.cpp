@@ -31,6 +31,7 @@ namespace shammodels::basegodunov::modules {
         });
 
         edges.res_ddot.value = shamalgs::collective::allreduce_sum(loc_val);
+        // logger::raw_ln("E-norm ",loc_val, edges.res_ddot.value);
     }
 
     template<class T>

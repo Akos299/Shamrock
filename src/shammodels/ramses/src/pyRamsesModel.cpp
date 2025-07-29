@@ -100,7 +100,6 @@ namespace shammodels::basegodunov {
                 [](TConfig &self, bool face_time_interpolate) {
                     self.face_half_time_interpolation = face_time_interpolate;
                 })
-
             .def(
                 "set_dust_mode_dhll",
                 [](TConfig &self, u32 ndust) {

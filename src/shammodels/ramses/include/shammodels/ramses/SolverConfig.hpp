@@ -20,6 +20,7 @@
  *
  */
 
+#include "shambase/constants.hpp"
 #include "shambase/exception.hpp"
 #include "shambase/string.hpp"
 #include "shambackends/vec.hpp"
@@ -107,10 +108,12 @@ namespace shammodels::basegodunov {
         Tscal tol                = 1e-6;
         inline Tscal get_tolerance() { return tol; }
         inline bool is_gravity_on() {
-            if (gravity_mode != NoGravity) {
-                return true;
-            }
-            return false;
+            return (gravity_mode != NoGravity);
+            // if (gravity_mode != NoGravity) {
+            //     return true;
+            // }
+            // else
+            //     return false;
         }
     };
 
@@ -216,7 +219,8 @@ struct shammodels::basegodunov::SolverConfig {
     GravityConfig<Tvec> gravity_config{};
     inline Tscal get_constant_4piG() {
         auto scal_G = get_constant_G();
-        return 4 * M_PI * scal_G;
+        // return 4. * shambase::constants::pi<Tscal> *scal_G;
+        return 4. * shambase::constants::pi<Tscal> * 1.;
     }
     inline Tscal get_grav_tol() { return gravity_config.get_tolerance(); }
     inline bool is_gravity_on() { return gravity_config.is_gravity_on(); }
@@ -277,13 +281,14 @@ struct shammodels::basegodunov::SolverConfig {
             logger::warn_ln("Ramses::SolverConfig", "Self gravity is experimental");
             u32 mode = gravity_config.gravity_mode;
 
-            if (!shamrock::are_experimental_features_allowed()) {
-                shambase::throw_with_loc<std::runtime_error>(shambase::format(
-                    "self gravity mode is not enabled but gravity mode is set to {} (> 0 whith 0 "
-                    "== "
-                    "NoGravity mode)",
-                    mode));
-            }
+            // if (!shamrock::are_experimental_features_allowed()) {
+            //     shambase::throw_with_loc<std::runtime_error>(shambase::format(
+            //         "self gravity mode is not enabled but gravity mode is set to {} (> 0 whith 0
+            //         "
+            //         "== "
+            //         "NoGravity mode)",
+            //         mode));
+            // }
         }
 
         if (!(eos_gamma > 1.0)) {

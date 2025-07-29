@@ -219,6 +219,18 @@ namespace shammodels::basegodunov {
             /// Reset the timings logged in the storage
             void reset() { *this = {}; }
         } timings_details;
+
+        // self-gravity fields
+        std::shared_ptr<shamrock::solvergraph::FieldRefs<Tscal>> refs_phi;
+        std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_res;
+        std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_p;
+        std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_Ap;
+        std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_hadamard_prod;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> e_norm;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> alpha;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> beta;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> new_val;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> old_val;
     };
 
 } // namespace shammodels::basegodunov
