@@ -16,13 +16,32 @@
  *
  */
 
+#include "shambase/DistributedData.hpp"
+#include "shambase/stacktrace.hpp"
 #include "shambackends/vec.hpp"
 #include "shammodels/ramses/Solver.hpp"
 #include "shammodels/ramses/modules/SolverStorage.hpp"
+#include "shamrock/patch/PatchDataField.hpp"
 #include "shamrock/scheduler/ComputeField.hpp"
 
-namespace shammodels::basegodunov::modules {
+namespace {
+    // an atomic structure represents a field to be exchange
+    template<class T>
+    struct FieldExcgInterface {
+        PatchDataField<T> excg_field;
+    };
 
+    //
+    template<class T>
+    struct MergedExcgField {
+        u32 original_elements;
+        u32 total_elements;
+        PatchDataField<T> excg_field;
+    };
+
+}; // namespace
+
+namespace shammodels::basegodunov::modules {
     /**
      * @brief Module of the Godunov solver to deal with ghost zone exchanges
      *
@@ -134,6 +153,53 @@ namespace shammodels::basegodunov::modules {
 
         /// @brief Exchange the ghost zones of the solver
         void exchange_ghost();
+
+        /**
+         * @brief This function extract the PatchDataDield correspond to "field_name", which are
+         * located on interfaces
+         * @tparam T field type (e.g f64 for field_name := rho )
+         * @param field_name the name of the field to be extracted
+         * @return PatchDataField of "field_name" on interfaces
+         *
+         */
+        template<class T>
+        inline shambase::DistributedDataShared<FieldExcgInterface<T>>
+        build_field_excg_interf(std::string field_name);
+
+        /**
+         * @brief communicate interface PatchDataField corresponding to "field_name"
+         *  @tparam T field type (e.g f64 for field_name := rho )
+         *  @param  interf PatchDataField of "field_name" on interfaces
+         *  @param field_name the name of the field to be extracted
+         *  @param nvar
+         *  @return
+         */
+        template<class T>
+        inline shambase::DistributedDataShared<FieldExcgInterface<T>> communicate_field_excg(
+            shambase::DistributedDataShared<FieldExcgInterface<T>> &&interf,
+            std::string field_name,
+            u32 nvar);
+
+        /**
+         * @brief merge patch data with their corresponding cells on the interfaces (the ones they
+         * received)
+         *  @tparam interf interfaces' cells recieved
+         *  @param field_name
+         *  @return
+         */
+        template<class T>
+        inline shambase::DistributedData<MergedExcgField<T>> merge_excg_buf(
+            shambase::DistributedDataShared<FieldExcgInterface<T>> &&interf,
+            std::string fiedl_name);
+
+        /**
+         * @brief
+         * @param
+         *
+         */
+        template<class T>
+        inline shambase::DistributedData<MergedExcgField<T>>
+        build_comm_merge_exg_field(std::string field_name, u32 nvar);
 
         private:
         /// Get a reference to the scheduler of Shamrock

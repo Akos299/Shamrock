@@ -16,18 +16,26 @@
  *
  */
 
+#include "shambase/DistributedData.hpp"
 #include "shambase/memory.hpp"
 #include "shambase/stacktrace.hpp"
 #include "shambase/string.hpp"
 #include "shamalgs/numeric.hpp"
+#include "shamalgs/serialize.hpp"
 #include "shambackends/sycl_utils.hpp"
 #include "shammath/AABB.hpp"
 #include "shammath/CoordRange.hpp"
 #include "shammodels/ramses/GhostZoneData.hpp"
 #include "shammodels/ramses/modules/GhostZones.hpp"
+#include "shamrock/patch/Patch.hpp"
+#include "shamrock/patch/PatchData.hpp"
+#include "shamrock/patch/PatchDataField.hpp"
 #include "shamrock/scheduler/InterfacesUtility.hpp"
 #include "shamsys/NodeInstance.hpp"
 #include "shamsys/legacy/log.hpp"
+#include <memory>
+#include <string>
+#include <utility>
 
 namespace shammodels::basegodunov::modules {
     /**
@@ -359,7 +367,8 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_ghos
         irho_gas_pscal_interf = ghost_layout.get_field_idx<Tscal>("rho_gas_pscal");
     }
 
-    // load layout info
+    // load layout info (This layout is the one set at initialization by the function
+    // init_required_fields() of Solver.hpp )
     PatchDataLayout &pdl = scheduler().pdl;
 
     const u32 icell_min = pdl.get_field_idx<TgridVec>("cell_min");
@@ -655,6 +664,113 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_compute_f
     timer_interf.end();
     storage.timings_details.interface += timer_interf.elasped_sec();
     return out;
+}
+
+template<class Tvec, class TgridVec>
+template<class T>
+inline shambase::DistributedDataShared<FieldExcgInterface<T>>
+shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::build_field_excg_interf(
+    std::string field_name) {
+    StackEntry stack_entry{};
+
+    using namespace shamrock::patch;
+    using namespace shamrock;
+    using namespace shammath;
+    using GZData              = GhostZonesData<Tvec, TgridVec>;
+    using InterfaceBuildInfos = typename GZData::InterfaceBuildInfos;
+
+    const u32 ifield  = scheduler().pdl.template get_field_idx<T>(field_name);
+    GZData &gen_ghost = storage.ghost_zone_infos.get();
+    auto pdat_interf  = gen_ghost.template build_interface_native<FieldExcgInterface<T>>(
+        [&](u64 sender,
+            u64 receiver,
+            InterfaceBuildInfos b_infos,
+            sycl::buffer<u32> &buf_idx,
+            u32 cnt) {
+            PatchData &sender_patch = scheduler().patch_data.get_pdat(sender);
+
+            PatchDataField<T> excgd_field
+                = sender_patch.get_field<T>(ifield).make_new_from_subset(buf_idx, cnt);
+
+            return FieldExcgInterface<T>{std::move(excgd_field)};
+        });
+}
+
+template<class Tvec, class TgridVec>
+template<class T>
+inline shambase::DistributedDataShared<FieldExcgInterface<T>>
+shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::communicate_field_excg(
+    shambase::DistributedDataShared<FieldExcgInterface<T>> &&interf,
+    std::string field_name,
+    u32 nvar) {
+    StackEntry stack_entry{};
+
+    using namespace shamrock::patch;
+    using namespace shamrock;
+    using namespace shammath;
+    using GZData              = GhostZonesData<Tvec, TgridVec>;
+    using InterfaceBuildInfos = typename GZData::InterfaceBuildInfos;
+
+    shambase::DistributedDataShared<FieldExcgInterface<T>> recv_dat;
+
+    shamalgs::collective::serialize_sparse_comm<FieldExcgInterface<T>>(
+        shamsys::instance::get_compute_scheduler_ptr(),
+        std::forward<shambase::DistributedDataShared<FieldExcgInterface<T>>>(interf),
+        recv_dat,
+        [&](u64 id) {
+            return scheduler().get_patch_rank_owner(id);
+        },
+        [](FieldExcgInterface<T> &field_interf) {
+            shamalgs::SerializeHelper ser(shamsys::instance::get_compute_scheduler_ptr());
+            shamalgs::SerializeSize size = field_interf.excg_field.serialize_buf_byte_size();
+            ser.allocate(size);
+            field_interf.excg_field.serialize_buf(ser);
+            return ser.finalize();
+        },
+
+        [&](sham::DeviceBuffer<u8> &&buf) {
+            shamalgs::SerializeHelper ser(
+                shamsys::instance::get_compute_scheduler_ptr(),
+                std::forward<sham::DeviceBuffer<u8>>(buf));
+            PatchDataField<T> exc_field = PatchDataField<T>::deserialize_buf(ser, field_name, nvar);
+            return FieldExcgInterface<T>{std::move(exc_field)};
+        });
+
+    return recv_dat;
+}
+
+template<class Tvec, class TgridVec>
+template<class T>
+inline shambase::DistributedData<MergedExcgField<T>>
+shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::merge_excg_buf(
+    shambase::DistributedDataShared<FieldExcgInterface<T>> &&interf, std::string field_name) {
+    StackEntry stack_entry{};
+    const u32 ifield = scheduler().pdl.get_field_idx(field_name);
+
+    return merge_native<FieldExcgInterface<T>, MergedExcgField<T>>(
+        std::forward<shambase::DistributedDataShared<FieldExcgInterface<T>>>(interf),
+        [=](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+            PatchDataField<T> &old_field = pdat.get_field<T>(ifield);
+            PatchDataField<T> new_field  = old_field.duplicate();
+            u32 or_elements              = old_field.get_obj_cnt();
+
+            u32 total_elements = or_elements;
+            return MergedExcgField<T>{or_elements, total_elements, std::move(new_field)};
+        },
+        [](MergedExcgField<T> &_merged, FieldExcgInterface<T> &_interf) {
+            _merged.total_elements += _interf.excg_field.get_obj_cnt();
+            _merged.excg_field.insert(_interf.excg_field);
+        });
+}
+
+template<class Tvec, class TgridVec>
+template<class T>
+inline shambase::DistributedData<MergedExcgField<T>>
+shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::build_comm_merge_exg_field(
+    std::string field_name, u32 nvar) {
+    auto field_interf = build_field_excg_interf<T>(field_name);
+    return merge_excg_buf<T>(
+        communicate_field_excg<T>(std::move(field_interf), field_name, nvar), field_name);
 }
 
 // doxygen does not have a clue of what is happenning here
