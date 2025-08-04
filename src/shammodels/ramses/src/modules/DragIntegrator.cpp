@@ -96,6 +96,7 @@ void shammodels::basegodunov::modules::DragIntegrator<Tvec, TgridVec>::involve_w
         u32 cell_count = pdat.get_obj_cnt() * AMRBlock::block_size;
 
         sham::EventList depend_list;
+
         auto acc_dt_rho_patch  = dt_rho_patch.get_read_access(depend_list);
         auto acc_dt_rhov_patch = dt_rhov_patch.get_read_access(depend_list);
         auto acc_dt_rhoe_patch = dt_rhoe_patch.get_read_access(depend_list);

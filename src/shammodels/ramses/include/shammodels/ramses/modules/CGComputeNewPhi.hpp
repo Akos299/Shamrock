@@ -18,6 +18,7 @@
 
 #include "shambackends/vec.hpp"
 #include "shammodels/ramses/SolverConfig.hpp"
+#include "shamrock/solvergraph/IFieldRefs.hpp"
 #include "shamrock/solvergraph/IFieldSpan.hpp"
 #include "shamrock/solvergraph/INode.hpp"
 #include "shamrock/solvergraph/Indexes.hpp"
@@ -37,14 +38,14 @@ namespace shammodels::basegodunov::modules {
             const shamrock::solvergraph::Indexes<u32> &sizes;
             const shamrock::solvergraph::IFieldSpan<T> &spans_phi_p;
             const shamrock::solvergraph::ScalarEdge<T> &alpha;
-            shamrock::solvergraph::IFieldSpan<T> &spans_phi;
+            shamrock::solvergraph::IFieldRefs<T> &spans_phi;
         };
 
         inline void set_edges(
             std::shared_ptr<shamrock::solvergraph::Indexes<u32>> sizes,
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<T>> spans_phi_p,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<T>> alpha,
-            std::shared_ptr<shamrock::solvergraph::IFieldSpan<T>> spans_phi) {
+            std::shared_ptr<shamrock::solvergraph::IFieldRefs<T>> spans_phi) {
             __internal_set_ro_edges({sizes, spans_phi_p, alpha});
             __internal_set_rw_edges({spans_phi});
         }
@@ -54,7 +55,7 @@ namespace shammodels::basegodunov::modules {
                 get_ro_edge<shamrock::solvergraph::Indexes<u32>>(0),
                 get_ro_edge<shamrock::solvergraph::IFieldSpan<T>>(1),
                 get_ro_edge<shamrock::solvergraph::ScalarEdge<T>>(2),
-                get_rw_edge<shamrock::solvergraph::IFieldSpan<T>>(0),
+                get_rw_edge<shamrock::solvergraph::IFieldRefs<T>>(0),
             };
         }
 

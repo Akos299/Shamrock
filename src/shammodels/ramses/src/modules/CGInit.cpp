@@ -137,7 +137,7 @@ namespace shammodels::basegodunov::modules {
         // std::cout << "      \n\n\n";
         //  std::cout << "\n --- _kernel_call --- \n";
         // std::cout << "      \n\n\n";
-        logger::raw_ln("CG-INIT ");
+        // logger::raw_ln("CG-INIT ");
     }
 
     template<class Tvec, class TgridVec>

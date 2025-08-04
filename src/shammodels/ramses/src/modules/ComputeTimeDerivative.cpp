@@ -14,9 +14,11 @@
  *
  */
 
+#include "shambase/DistributedData.hpp"
 #include "shambase/memory.hpp"
 #include "shammodels/ramses/modules/ComputeTimeDerivative.hpp"
 #include "shamrock/scheduler/SchedulerUtility.hpp"
+#include "shamrock/solvergraph/IFieldRefs.hpp"
 
 template<class T>
 using NGLink = shammodels::basegodunov::modules::NeighGraphLinkField<T>;
@@ -73,6 +75,9 @@ void shammodels::basegodunov::modules::ComputeTimeDerivative<Tvec, TgridVec>::co
     shambase::DistributedData<NGLink<Tscal>> &flux_rhoe_face_zm
         = shambase::get_check_ref(storage.flux_rhoe_face_zm).link_fields;
 
+    //    shamrock::solvergraph::DDPatchDataFieldRef<Tscal> & phi_new =
+    //    shambase::get_check_ref(storage.refs_phi).get_refs();
+
     scheduler().for_each_patchdata_nonempty([&](const shamrock::patch::Patch p,
                                                 shamrock::patch::PatchData &pdat) {
         shamlog_debug_ln("[AMR Flux]", "accumulate fluxes patch", p.id_patch);
@@ -126,6 +131,8 @@ void shammodels::basegodunov::modules::ComputeTimeDerivative<Tvec, TgridVec>::co
         sham::DeviceBuffer<Tvec> &dt_rhov_patch  = cfield_dtrhov.get_buf_check(id);
         sham::DeviceBuffer<Tscal> &dt_rhoe_patch = cfield_dtrhoe.get_buf_check(id);
 
+        // sham::DeviceBuffer<Tscal> &phi_new_buf  = phi_new.get(id).get().get_buf();
+
         AMRGraph &graph_neigh_xp
             = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::xp]);
         AMRGraph &graph_neigh_xm
@@ -149,6 +156,9 @@ void shammodels::basegodunov::modules::ComputeTimeDerivative<Tvec, TgridVec>::co
                   .get_buf();
 
         sham::EventList depends_list;
+
+        // auto acc_phi = phi_new_buf.get_read_access(depends_list);
+
         auto acc_aabb_block_lower = cell0block_aabb_lower.get_read_access(depends_list);
         auto acc_aabb_cell_size   = block_cell_sizes.get_read_access(depends_list);
         auto acc_dt_rho_patch     = dt_rho_patch.get_write_access(depends_list);
@@ -284,6 +294,8 @@ void shammodels::basegodunov::modules::ComputeTimeDerivative<Tvec, TgridVec>::co
                 acc_dt_rhoe_patch[id_a] = dtrhoe;
             });
         });
+
+        // phi_new_buf.complete_event_state(e);
 
         cell0block_aabb_lower.complete_event_state(e);
         block_cell_sizes.complete_event_state(e);

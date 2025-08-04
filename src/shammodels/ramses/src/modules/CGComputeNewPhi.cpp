@@ -66,7 +66,7 @@ namespace shammodels::basegodunov::modules {
             edges.alpha.value,
             edges.sizes.indexes,
             block_size);
-        logger::raw_ln("New-phi");
+        // logger::raw_ln("New-phi");
     }
 
     template<class T>

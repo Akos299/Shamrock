@@ -38,49 +38,54 @@ namespace shammodels::basegodunov::modules {
         edges.spans_phi_res.ensure_sizes(edges.sizes.indexes);
         edges.spans_phi_p.ensure_sizes(edges.sizes.indexes);
 
-        logger::raw_ln("CG-MAIN-LOOP [INIT] ");
+        // logger::raw_ln("CG-MAIN-LOOP [INIT] ");
         node0.evaluate();
-        logger::raw_ln("CG-MAIN-LOOP-[OLD-VAL] ");
+        // logger::raw_ln("CG-MAIN-LOOP-[OLD-VAL] ");
         node1.evaluate();
-        logger::raw_ln("CG-MAIN-LOOP-[OLD-VAL] ", edges.old_values.value);
+
         u32 k = 0;
+        logger::raw_ln(" k = ", k);
+        logger::raw_ln(" RES = ", edges.old_values.value);
         while ((k < Niter_max)) {
             // increment iteration
             k = k + 1;
-            logger::raw_ln("CG-MAIN-LOOP-[for loop over k] ", k);
+            //     logger::raw_ln("CG-MAIN-LOOP-[for loop over k] ", k);
 
-            logger::raw_ln("CG-MAIN-LOOP-[AP] ");
+            //     logger::raw_ln("CG-MAIN-LOOP-[AP] ");
             node2.evaluate();
 
-            logger::raw_ln("CG-MAIN-LOOP-[P x AP] ");
+            //     logger::raw_ln("CG-MAIN-LOOP-[P x AP] ");
             node3.evaluate();
 
-            logger::raw_ln("CG-MAIN-LOOP-[A-norm av] ", edges.e_norm.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[A-norm av] ", edges.e_norm.value);
             node4.evaluate();
-            logger::raw_ln("CG-MAIN-LOOP-[A-norm af] ", edges.e_norm.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[A-norm af] ", edges.e_norm.value);
 
-            logger::raw_ln("CG-MAIN-LOOP-[alpha av] ", edges.alpha.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[alpha av] ", edges.alpha.value);
             edges.alpha.value = edges.old_values.value / edges.e_norm.value;
-            logger::raw_ln("CG-MAIN-LOOP-[alpha af] ", edges.alpha.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[alpha af] ", edges.alpha.value);
 
-            logger::raw_ln("CG-MAIN-LOOP-[New-phi] ");
+            //     logger::raw_ln("CG-MAIN-LOOP-[New-phi] ");
             node5.evaluate();
 
-            logger::raw_ln("CG-MAIN-LOOP-[New-res] ");
+            //     logger::raw_ln("CG-MAIN-LOOP-[New-res] ");
             node6.evaluate();
 
-            logger::raw_ln("CG-MAIN-LOOP-[NEW-VAL] ", edges.new_values.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[NEW-VAL] ", edges.new_values.value);
             node7.evaluate();
-            logger::raw_ln("CG-MAIN-LOOP-[NEW-VAL] ", edges.new_values.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[NEW-VAL] ", edges.new_values.value);
 
-            logger::raw_ln("CG-MAIN-LOOP-[beta av] ", edges.beta.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[beta av] ", edges.beta.value);
             edges.beta.value = edges.new_values.value / edges.old_values.value;
-            logger::raw_ln("CG-MAIN-LOOP-[beta af] ", edges.beta.value);
+            //     logger::raw_ln("CG-MAIN-LOOP-[beta af] ", edges.beta.value);
 
-            logger::raw_ln("CG-MAIN-LOOP-[update-old] ");
+            //     logger::raw_ln("CG-MAIN-LOOP-[update-old] ");
             edges.old_values.value = edges.new_values.value;
 
-            logger::raw_ln("CG-MAIN-LOOP-[New-rep] ");
+            logger::raw_ln(" k = ", k);
+            logger::raw_ln(" RES = ", edges.old_values.value);
+
+            //     logger::raw_ln("CG-MAIN-LOOP-[New-rep] ");
             node8.evaluate();
 
             if (sycl::sqrt(edges.old_values.value) < tol)

@@ -21,6 +21,7 @@
 #include "shambackends/vec.hpp"
 #include "shammodels/ramses/SolverConfig.hpp"
 #include "shammodels/ramses/solvegraph/OrientedAMRGraphEdge.hpp"
+#include "shamrock/solvergraph/IFieldRefs.hpp"
 #include "shamrock/solvergraph/IFieldSpan.hpp"
 #include "shamrock/solvergraph/INode.hpp"
 #include "shamrock/solvergraph/Indexes.hpp"
@@ -43,7 +44,7 @@ namespace shammodels::basegodunov::modules {
             const shamrock::solvergraph::Indexes<u32> &sizes;
             const solvergraph::OrientedAMRGraphEdge<Tvec, TgridVec> &cell_neigh_graph;
             const shamrock::solvergraph::IFieldSpan<Tscal> &spans_block_cell_sizes;
-            const shamrock::solvergraph::IFieldSpan<Tscal> &spans_phi;
+            const shamrock::solvergraph::IFieldRefs<Tscal> &spans_phi;
             const shamrock::solvergraph::IFieldSpan<Tscal> &spans_rho;
             const shamrock::solvergraph::ScalarEdge<Tscal> &mean_rho;
             shamrock::solvergraph::IFieldSpan<Tscal> &spans_phi_res;
@@ -54,7 +55,7 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::Indexes<u32>> sizes,
             std::shared_ptr<solvergraph::OrientedAMRGraphEdge<Tvec, TgridVec>> cell_neigh_graph,
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_block_cell_sizes,
-            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_phi,
+            std::shared_ptr<shamrock::solvergraph::IFieldRefs<Tscal>> spans_phi,
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_rho,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> mean_rho,
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_phi_res,
@@ -69,7 +70,7 @@ namespace shammodels::basegodunov::modules {
                 get_ro_edge<shamrock::solvergraph::Indexes<u32>>(0),
                 get_ro_edge<solvergraph::OrientedAMRGraphEdge<Tvec, TgridVec>>(1),
                 get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(2),
-                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(3),
+                get_ro_edge<shamrock::solvergraph::IFieldRefs<Tscal>>(3),
                 get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(4),
                 get_ro_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(5),
                 get_rw_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(0),

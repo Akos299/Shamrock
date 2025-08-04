@@ -4,7 +4,7 @@ import numpy as np
 import shamrock
 
 
-def run_sim(X, rho, phi, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
+def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     ctx = shamrock.Context()
     ctx.pdata_layout_new()
     model = shamrock.get_Model_Ramses(context=ctx, vector_type="f64_3", grid_repr="i64_3")
@@ -20,7 +20,7 @@ def run_sim(X, rho, phi, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     scale_fact = 1 / (sz * base * multx)
     cfg.set_scale_factor(scale_fact)
     cfg.set_riemann_solver_hllc()
-    cfg.set_eos_gamma(1.66667)
+    cfg.set_eos_gamma(1.4)
     cfg.set_slope_lim_vanleer_sym()
     cfg.set_face_time_interpolation(False)
     # cfg.set_drag_mode_no_drag()
@@ -106,17 +106,61 @@ def run_sim(X, rho, phi, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     tend = 0.245
 
     for k in range(1):
+        """
+        dic_bf = convert_to_cell_coords(ctx.collect_data())
+        print(f"\n\n===================================== RHOVEL[af] =================\n\n")
+
+        print(f" {dic_bf["rhovel"][:]}")
+
+        print(f"\n\n===================================== RHOVEL [bf]=================\n\n")
+
+
+        print(f"\n\n===================================== RHO[af] =================\n\n")
+
+        print(f" {dic_bf["rho"][:]}")
+
+        print(f"\n\n===================================== RHO [bf]=================\n\n")
+
+        print(f"\n\n===================================== xmin first [af] =================\n\n")
+
+        print(f" {dic_bf["xmin"][:]}")
+
+        print(f"\n\n===================================== xmin [bf]=================\n\n")
+
+        print(f"\n\n===================================== ymin [af] =================\n\n")
+
+        print(f" {dic_bf["ymin"][:]}")
+
+        print(f"\n\n===================================== ymin [bf]=================\n\n")
+
+        print(f"\n\n===================================== zmin [af] =================\n\n")
+
+        print(f" {dic_bf["zmin"][:]}")
+
+        print(f"\n\n===================================== zmin [bf]=================\n\n")
+        """
 
         if k % freq == 0:
             model.dump_vtk("test" + str(k) + ".vtk")
-        dic = convert_to_cell_coords(ctx.collect_data())
-
-        for i in range(len(dic["xmin"])):
-            X.append(dic["xmin"][i])
-            rho.append(dic["rho"][i])
-            phi.append(dic["phi"][i])
 
         model.evolve_once_override_time(t, dt)
+
+        dic = convert_to_cell_coords(ctx.collect_data())
+
+        # print(f" shape(rho) :  {dic["rho"].shape}\n")
+        # print(f" shape(phi) :  {dic["phi"].shape}\n")
+        # print(f" shape(rhovel) :  {dic["rhovel"].shape}\n")
+        # print(f"  shape(rhoetot) :  {dic["rhoetot"].shape}\n")
+        # print(f" shape(xmin) :  {dic["xmin"].shape}\n")
+        cc = -(4.0 * np.pi * G) / (3 * (2 * np.pi) ** 2)
+
+        tmp = (dic["rho"] - rho0) * cc
+
+        for i in range(len(dic["xmin"])):
+            X.append(dic["ymin"][i])
+            rho.append(dic["rho"][i])
+            phi.append(dic["phi"][i])
+            phi_ana.append(tmp[i])
 
         t = dt * k
         # dt = next_dt
@@ -130,9 +174,14 @@ def run_sim(X, rho, phi, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
 X = []
 rho = []
 phi = []
+phi_ana = []
 
-run_sim(X, rho, phi)
+
+run_sim(X, rho, phi, phi_ana)
 # plt.plot(X, rho, ".", label="rho")
-plt.plot(X, phi, ".", label="phi")
+plt.plot(X, phi, ".", label="phi-num")
+plt.plot(X, phi_ana, ".", label="phi-ana")
 plt.legend()
 plt.show()
+
+# print(f"len(X) = {len(X)}\n")

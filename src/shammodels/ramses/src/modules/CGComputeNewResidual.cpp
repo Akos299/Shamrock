@@ -65,7 +65,7 @@ namespace shammodels::basegodunov::modules {
             edges.alpha.value,
             edges.sizes.indexes,
             block_size);
-        logger::raw_ln("New-res");
+        // logger::raw_ln("New-res");
     }
 
     template<class T>
