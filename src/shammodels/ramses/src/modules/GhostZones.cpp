@@ -33,6 +33,7 @@
 #include "shamrock/scheduler/InterfacesUtility.hpp"
 #include "shamsys/NodeInstance.hpp"
 #include "shamsys/legacy/log.hpp"
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -694,6 +695,7 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::build_field_excg_i
 
             return FieldExcgInterface<T>{std::move(excgd_field)};
         });
+    return pdat_interf;
 }
 
 template<class Tvec, class TgridVec>
@@ -745,7 +747,7 @@ inline shambase::DistributedData<MergedExcgField<T>>
 shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::merge_excg_buf(
     shambase::DistributedDataShared<FieldExcgInterface<T>> &&interf, std::string field_name) {
     StackEntry stack_entry{};
-    const u32 ifield = scheduler().pdl.get_field_idx(field_name);
+    const u32 ifield = scheduler().pdl.template get_field_idx<T>(field_name);
 
     return merge_native<FieldExcgInterface<T>, MergedExcgField<T>>(
         std::forward<shambase::DistributedDataShared<FieldExcgInterface<T>>>(interf),
@@ -771,6 +773,39 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::build_comm_merge_e
     auto field_interf = build_field_excg_interf<T>(field_name);
     return merge_excg_buf<T>(
         communicate_field_excg<T>(std::move(field_interf), field_name, nvar), field_name);
+}
+
+template<class Tvec, class TgridVec>
+void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::merge_phi_ghost() {
+
+    StackEntry stack_loc{};
+    storage.merged_phi.set(build_comm_merge_exg_field<Tscal>("phi", 1));
+
+    { // set old elements counts
+        shambase::get_check_ref(storage.block_counts).indexes
+            = storage.merged_phi.get().template map<u32>(
+                [&](u64 id, MergedExcgField<Tscal> &mpdat) {
+                    return mpdat.original_elements;
+                });
+    }
+
+    { // set total elements counts
+        shambase::get_check_ref(storage.block_counts_with_ghost).indexes
+            = storage.merged_phi.get().template map<u32>(
+                [&](u64 id, MergedExcgField<Tscal> &mpdat) {
+                    return mpdat.total_elements;
+                });
+    }
+
+    {
+        // Attach spans to self-gravity with gost
+        // shambase::get_check_ref(storage.);
+        storage.refs_phi->set_refs(
+            storage.merged_phi.get().template map<std::reference_wrapper<PatchDataField<Tscal>>>(
+                [&](u64 id, MergedExcgField<Tscal> &mpdat) {
+                    return std::ref(mpdat.excg_field);
+                }));
+    }
 }
 
 // doxygen does not have a clue of what is happenning here

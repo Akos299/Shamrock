@@ -27,8 +27,11 @@
 #include "shammodels/ramses/modules/CGHadamardProd.hpp"
 #include "shammodels/ramses/modules/CGInit.hpp"
 #include "shammodels/ramses/modules/CGMatVecProd.hpp"
+#include "shammodels/ramses/modules/GhostZones.hpp"
 #include "shammodels/ramses/modules/ResidualDot.hpp"
+#include "shammodels/ramses/modules/SolverStorage.hpp"
 #include "shammodels/ramses/solvegraph/OrientedAMRGraphEdge.hpp"
+#include "shamrock/scheduler/ShamrockCtx.hpp"
 #include "shamrock/solvergraph/Field.hpp"
 #include "shamrock/solvergraph/IFieldSpan.hpp"
 #include "shamrock/solvergraph/INode.hpp"
@@ -41,6 +44,15 @@ namespace shammodels::basegodunov::modules {
     class NodeCGLoop : public shamrock::solvergraph::INode {
         using Tscal    = shambase::VecComponent<Tvec>;
         using AMRBlock = typename shammodels::basegodunov::SolverConfig<Tvec, TgridVec>::AMRBlock;
+        using Config   = SolverConfig<Tvec, TgridVec>;
+        /// Alias to the SolverStorage type
+        using Storage = SolverStorage<Tvec, TgridVec, u64>;
+        /// Reference to the Shamrock context
+        ShamrockCtx &context;
+        /// Reference to the configuration of the solver
+        Config &solver_config;
+        /// Reference to the storage of the solver
+        Storage &storage;
 
         u32 block_size;
         Tscal fourPiG;
@@ -48,8 +60,16 @@ namespace shammodels::basegodunov::modules {
         Tscal tol;
 
         public:
-        NodeCGLoop(u32 block_size, Tscal fourPiG, u32 Niter_max, Tscal tol)
-            : block_size(block_size), fourPiG(fourPiG), Niter_max(Niter_max), tol(tol) {}
+        NodeCGLoop(
+            ShamrockCtx &context,
+            Config &solver_config,
+            Storage &storage,
+            u32 block_size,
+            Tscal fourPiG,
+            u32 Niter_max,
+            Tscal tol)
+            : context(context), solver_config(solver_config), storage(storage),
+              block_size(block_size), fourPiG(fourPiG), Niter_max(Niter_max), tol(tol) {}
 
         // init node
         modules::CGInit<Tvec, TgridVec> node0{block_size, fourPiG};
@@ -70,6 +90,9 @@ namespace shammodels::basegodunov::modules {
 
         // New-p node
         modules::NodeComputeNewSearchDir<Tscal> node8{block_size};
+
+        // ghost zone
+        modules::GhostZones<Tvec, TgridVec> gz{context, solver_config, storage};
 
         struct Edges {
             const shamrock::solvergraph::Indexes<u32> &sizes;

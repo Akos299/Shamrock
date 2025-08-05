@@ -38,6 +38,8 @@ namespace shammodels::basegodunov::modules {
         edges.spans_phi_res.ensure_sizes(edges.sizes.indexes);
         edges.spans_phi_p.ensure_sizes(edges.sizes.indexes);
 
+        gz.merge_phi_ghost();
+
         // logger::raw_ln("CG-MAIN-LOOP [INIT] ");
         node0.evaluate();
         // logger::raw_ln("CG-MAIN-LOOP-[OLD-VAL] ");

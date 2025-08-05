@@ -24,23 +24,6 @@
 #include "shamrock/patch/PatchDataField.hpp"
 #include "shamrock/scheduler/ComputeField.hpp"
 
-namespace {
-    // an atomic structure represents a field to be exchange
-    template<class T>
-    struct FieldExcgInterface {
-        PatchDataField<T> excg_field;
-    };
-
-    //
-    template<class T>
-    struct MergedExcgField {
-        u32 original_elements;
-        u32 total_elements;
-        PatchDataField<T> excg_field;
-    };
-
-}; // namespace
-
 namespace shammodels::basegodunov::modules {
     /**
      * @brief Module of the Godunov solver to deal with ghost zone exchanges
@@ -195,11 +178,23 @@ namespace shammodels::basegodunov::modules {
         /**
          * @brief
          * @param
-         *
          */
         template<class T>
         inline shambase::DistributedData<MergedExcgField<T>>
         build_comm_merge_exg_field(std::string field_name, u32 nvar);
+
+        /**
+         * @brief
+         * @param
+         */
+        void merge_phi_ghost();
+
+        // {
+
+        //     StackEntry stack_loc{};
+
+        //     storage.merged_phi.set(build_comm_merge_exg_field<T>("phi", 1));
+        // }
 
         private:
         /// Get a reference to the scheduler of Shamrock

@@ -19,6 +19,24 @@
 #include "shambase/DistributedData.hpp"
 #include "shambackends/sycl.hpp"
 #include "shammath/AABB.hpp"
+#include "shamrock/patch/PatchDataField.hpp"
+
+namespace {
+    // an atomic structure represents a field to be exchange
+    template<class T>
+    struct FieldExcgInterface {
+        PatchDataField<T> excg_field;
+    };
+
+    //
+    template<class T>
+    struct MergedExcgField {
+        u32 original_elements;
+        u32 total_elements;
+        PatchDataField<T> excg_field;
+    };
+
+}; // namespace
 
 namespace shammodels::basegodunov {
 

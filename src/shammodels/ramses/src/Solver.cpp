@@ -481,6 +481,9 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
 
         u32 Niter_max = 150;
         modules::NodeCGLoop<Tvec, TgridVec> node{
+            context,
+            solver_config,
+            storage,
             AMRBlock::block_size,
             solver_config.get_constant_4piG(),
             Niter_max,

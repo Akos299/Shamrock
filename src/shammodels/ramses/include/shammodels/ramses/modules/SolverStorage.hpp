@@ -15,6 +15,7 @@
  * @brief
  */
 
+#include "shambase/DistributedData.hpp"
 #include "shambase/StorageComponent.hpp"
 #include "shambase/stacktrace.hpp"
 #include "shambackends/vec.hpp"
@@ -116,6 +117,7 @@ namespace shammodels::basegodunov {
         Component<shamrock::patch::PatchDataLayout> ghost_layout;
 
         Component<shambase::DistributedData<shamrock::MergedPatchData>> merged_patchdata_ghost;
+        Component<shambase::DistributedData<MergedExcgField<Tscal>>> merged_phi;
 
         std::shared_ptr<solvergraph::NeighGrapkLinkFieldEdge<std::array<Tscal, 2>>> rho_face_xp;
         std::shared_ptr<solvergraph::NeighGrapkLinkFieldEdge<std::array<Tscal, 2>>> rho_face_xm;
