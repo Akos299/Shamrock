@@ -38,61 +38,69 @@ namespace shammodels::basegodunov::modules {
         edges.spans_phi_res.ensure_sizes(edges.sizes.indexes);
         edges.spans_phi_p.ensure_sizes(edges.sizes.indexes);
 
-        gz.merge_phi_ghost();
+        // gz.merge_phi_ghost();
 
-        // logger::raw_ln("CG-MAIN-LOOP [INIT] ");
+        /* compute r0 = p0 = 4*\pi*G* \left( \rho - \bar{\rho} \right)*/
         node0.evaluate();
-        // logger::raw_ln("CG-MAIN-LOOP-[OLD-VAL] ");
+
+        /* compute <r0,r0> and assign its value to  edges.old_values.value */
         node1.evaluate();
 
         u32 k = 0;
         logger::raw_ln(" k = ", k);
         logger::raw_ln(" RES = ", edges.old_values.value);
+        /* Main loop */
         while ((k < Niter_max)) {
             // increment iteration
             k = k + 1;
-            //     logger::raw_ln("CG-MAIN-LOOP-[for loop over k] ", k);
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[AP] ");
+            /* update boundary condition*/
+            // gz.merge_phi_ghost();
+
+            /* compute Ap_{k} */
             node2.evaluate();
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[P x AP] ");
+            /** compute Hadamard product p X Ap such that \left( p_{k} X Ap_{k} \right)_{i} = \left(
+             * p_{i} * (Ap)_{i} \right) */
             node3.evaluate();
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[A-norm av] ", edges.e_norm.value);
+            /** compute the A-norm of p_{k} , <p_{k}, Ap_{k}> and assign its value to
+             * edges.e_norm.value */
             node4.evaluate();
-            //     logger::raw_ln("CG-MAIN-LOOP-[A-norm af] ", edges.e_norm.value);
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[alpha av] ", edges.alpha.value);
+            /** compute \alpha_{k} = \frac{ <r_{k},r_{k}> }{ <p_{k},Ap_{k}> }*/
             edges.alpha.value = edges.old_values.value / edges.e_norm.value;
-            //     logger::raw_ln("CG-MAIN-LOOP-[alpha af] ", edges.alpha.value);
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[New-phi] ");
+            /** compute new phi : \phi_{k+1} = \phi_{k} + \alpha_{k} p_{k}  */
             node5.evaluate();
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[New-res] ");
+            /** compute new residual : r_{k+1} = r_{k} - \alpha_{k} (Ap_{k}) */
             node6.evaluate();
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[NEW-VAL] ", edges.new_values.value);
+            /** compute <r_{k+1},r_{k+1}>*/
             node7.evaluate();
-            //     logger::raw_ln("CG-MAIN-LOOP-[NEW-VAL] ", edges.new_values.value);
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[beta av] ", edges.beta.value);
+            /** compute \beta_{k} = \frac{<r_{k+1},r_{k+1}>}{<r_{k},r_{k}>}*/
             edges.beta.value = edges.new_values.value / edges.old_values.value;
-            //     logger::raw_ln("CG-MAIN-LOOP-[beta af] ", edges.beta.value);
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[update-old] ");
+            /** set <r_{k},r_{k}> = <r_{k+1},r_{k+1}>*/
             edges.old_values.value = edges.new_values.value;
 
             logger::raw_ln(" k = ", k);
             logger::raw_ln(" RES = ", edges.old_values.value);
 
-            //     logger::raw_ln("CG-MAIN-LOOP-[New-rep] ");
+            /** compute p_{k+1} = r_{k+1} + \beta_{k} p_{k} */
             node8.evaluate();
+
+            storage.merged_phi.reset();
+            gz.merge_phi_ghost();
 
             if (sycl::sqrt(edges.old_values.value) < tol)
                 break;
+            // storage.merged_phi.reset();
         }
+
+        //  gz.merge_phi_ghost();
     }
 
     template<class Tvec, class TgridVec>

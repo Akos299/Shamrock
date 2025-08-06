@@ -50,6 +50,8 @@ namespace shamrock::solvergraph {
         Field(u32 nvar, std::string name, std::string texsymbol)
             : nvar(nvar), name(name), IFieldRefs<T>(name, texsymbol) {}
 
+        inline ComputeField<T> &get_fields() { return field; }
+
         virtual DDPatchDataFieldRef<T> &get_refs() { return field_refs; }
 
         virtual const DDPatchDataFieldRef<T> &get_refs() const { return field_refs; }
@@ -115,5 +117,7 @@ namespace shamrock::solvergraph {
         }
 
         inline PatchDataField<T> &get_field(u64 id_patch) { return field.field_data.get(id_patch); }
+
+        void sync_all() { sync(); }
     };
 } // namespace shamrock::solvergraph

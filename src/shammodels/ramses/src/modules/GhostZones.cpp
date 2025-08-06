@@ -17,9 +17,11 @@
  */
 
 #include "shambase/DistributedData.hpp"
+#include "shambase/aliases_int.hpp"
 #include "shambase/memory.hpp"
 #include "shambase/stacktrace.hpp"
 #include "shambase/string.hpp"
+#include "shambase/time.hpp"
 #include "shamalgs/numeric.hpp"
 #include "shamalgs/serialize.hpp"
 #include "shambackends/sycl_utils.hpp"
@@ -31,6 +33,8 @@
 #include "shamrock/patch/PatchData.hpp"
 #include "shamrock/patch/PatchDataField.hpp"
 #include "shamrock/scheduler/InterfacesUtility.hpp"
+#include "shamrock/solvergraph/Field.hpp"
+#include "shamrock/solvergraph/FieldRefs.hpp"
 #include "shamsys/NodeInstance.hpp"
 #include "shamsys/legacy/log.hpp"
 #include <functional>
@@ -682,7 +686,7 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::build_field_excg_i
 
     const u32 ifield  = scheduler().pdl.template get_field_idx<T>(field_name);
     GZData &gen_ghost = storage.ghost_zone_infos.get();
-    auto pdat_interf  = gen_ghost.template build_interface_native<FieldExcgInterface<T>>(
+    return gen_ghost.template build_interface_native<FieldExcgInterface<T>>(
         [&](u64 sender,
             u64 receiver,
             InterfaceBuildInfos b_infos,
@@ -695,7 +699,6 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::build_field_excg_i
 
             return FieldExcgInterface<T>{std::move(excgd_field)};
         });
-    return pdat_interf;
 }
 
 template<class Tvec, class TgridVec>
@@ -806,6 +809,128 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::merge_phi_gho
                     return std::ref(mpdat.excg_field);
                 }));
     }
+}
+
+template<class Tvec, class TgridVec>
+template<class T>
+shamrock::solvergraph::Field<T>
+shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergraph_field(
+    shamrock::solvergraph::Field<T> &in) {
+    StackEntry stack_loc{};
+
+    shambase::Timer time_exchange;
+    time_exchange.start();
+
+    using namespace shamrock::patch;
+    using namespace shamrock;
+    using namespace shammath;
+
+    using GZData              = GhostZonesData<Tvec, TgridVec>;
+    using InterfaceBuildInfos = typename GZData::InterfaceBuildInfos;
+    using InterfaceIdTable    = typename GZData::InterfaceIdTable;
+
+    using AMRBlock = typename Config::AMRBlock;
+
+    // generate send buffers
+    GZData &gen_ghost = storage.ghost_zone_infos.get();
+    auto pdat_interf  = gen_ghost.template build_interface_native<PatchDataField<T>>(
+        [&](u64 sender, u64, InterfaceBuildInfos binfos, sycl::buffer<u32> &buf_idx, u32 cnt) {
+            PatchDataField<T> &sender_patch = in.get_field(sender);
+
+            PatchDataField<T> pdat(sender_patch.get_name(), sender_patch.get_nvar(), cnt);
+
+            return pdat;
+        });
+
+    // communicate buffers
+    shambase::DistributedDataShared<PatchDataField<T>> interf_pdat
+        = communicate_pdat_field<T>(std::move(pdat_interf));
+
+    std::map<u64, u64> sz_interf_map;
+    interf_pdat.for_each([&](u64 s, u64 r, PatchDataField<T> &pdat_interf) {
+        sz_interf_map[r] += pdat_interf.get_obj_cnt();
+    });
+
+    shamrock::solvergraph::Field<T> out;
+
+    scheduler().for_each_patchdata_nonempty(
+        [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+            PatchDataField<T> &receiver_patch = in.get_field(p.id_patch);
+            PatchDataField<T> new_pdat(receiver_patch);
+
+            interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
+                if (receiver == p.id_patch) {
+                    new_pdat.insert(interface);
+                }
+            });
+            out.get_fields().field_data.add_obj(p.id_patch, std::move(new_pdat));
+        });
+
+    out.sync_all();
+    time_exchange.end();
+    storage.timings_details.interface += time_exchange.elasped_sec();
+    return out;
+}
+
+template<class Tvec, class TgridVec>
+template<class T>
+shamrock::solvergraph::FieldRefs<T>
+shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergraph_field_refs(
+    shamrock::solvergraph::FieldRefs<T> &in) {
+
+    StackEntry stack_loc{};
+
+    shambase::Timer exchange_time;
+    exchange_time.start();
+
+    using namespace shamrock::patch;
+    using namespace shamrock;
+    using namespace shammath;
+
+    using GZData              = GhostZonesData<Tvec, TgridVec>;
+    using InterfaceBuildInfos = typename GZData::InterfaceBuildInfos;
+    using InterfaceIdTable    = typename GZData::InterfaceIdTable;
+
+    using AMRBlock = typename Config::AMRBlock;
+
+    // generate send buffers
+    GZData &gen_ghost = storage.ghost_zone_infos.get();
+    auto pdat_interf  = gen_ghost.template build_interface_native<PatchDataField<T>>(
+        [&](u64 sender, u64, InterfaceBuildInfos binfos, sycl::buffer<u32> &buf_idx, u32 cnt) {
+            PatchDataField<T> &sender_patch = in.get(sender);
+            PatchDataField<T> pdat(sender_patch.get_name(), sender_patch.get_nvar(), cnt);
+            return pdat;
+        });
+
+    // communicate buffers
+    shambase::DistributedDataShared<PatchDataField<T>> interf_pdat
+        = communicate_pdat_field<T>(std::move(pdat_interf));
+
+    std::map<u64, u64> sz_interf_map;
+    interf_pdat.for_each([&](u64 s, u64 r, PatchDataField<T> &pdat_interf) {
+        sz_interf_map[r] += pdat_interf.get_obj_cnt();
+    });
+
+    shamrock::solvergraph::FieldRefs<T> out;
+
+    scheduler().for_each_patchdata_nonempty(
+        [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+            PatchDataField<T> &receiver_patch = in.get(p.id_patch);
+
+            PatchDataField<T> new_pdat(receiver_patch);
+            interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
+                if (receiver == p.id_patch) {
+                    new_pdat.insert(interface);
+                }
+            });
+            out.get_refs().add_obj(
+                p.id_patch, std::move(std::reference_wrapper<PatchDataField<T>>(new_pdat)));
+        });
+
+    out.set_refs(out.get_refs()); // this is just to call sync_spans()
+    exchange_time.end();
+    storage.timings_details.interface += exchange_time.elasped_sec();
+    return out;
 }
 
 // doxygen does not have a clue of what is happenning here

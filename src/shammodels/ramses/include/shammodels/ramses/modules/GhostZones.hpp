@@ -23,6 +23,8 @@
 #include "shammodels/ramses/modules/SolverStorage.hpp"
 #include "shamrock/patch/PatchDataField.hpp"
 #include "shamrock/scheduler/ComputeField.hpp"
+#include "shamrock/solvergraph/Field.hpp"
+#include "shamrock/solvergraph/FieldRefs.hpp"
 
 namespace shammodels::basegodunov::modules {
     /**
@@ -176,8 +178,9 @@ namespace shammodels::basegodunov::modules {
             std::string fiedl_name);
 
         /**
-         * @brief
-         * @param
+         * @brief communicate and merge patchDataField
+         * @param field_name
+         * @param nvar
          */
         template<class T>
         inline shambase::DistributedData<MergedExcgField<T>>
@@ -189,12 +192,27 @@ namespace shammodels::basegodunov::modules {
          */
         void merge_phi_ghost();
 
-        // {
+        /**
+         * @brief Exchange the ghost zones of a given solvergraph::FieldRefs and return the merged
+         * data after the exchange
+         *
+         * @param in solvergraph::FieldRefs to exchange
+         * @return the exchanged solvergraph::FieldRefs
+         */
+        template<class T>
+        shamrock::solvergraph::FieldRefs<T>
+        exchange_solvergraph_field_refs(shamrock::solvergraph::FieldRefs<T> &in);
 
-        //     StackEntry stack_loc{};
-
-        //     storage.merged_phi.set(build_comm_merge_exg_field<T>("phi", 1));
-        // }
+        /**
+         * @brief Exchange the ghost zones of a given solvergraph::Field and return the merged data
+         * after the exchange
+         *
+         * @param in solvergraph::Field to exchange
+         * @return the exchanged solvergraph::Field
+         */
+        template<class T>
+        shamrock::solvergraph::Field<T>
+        exchange_solvergraph_field(shamrock::solvergraph::Field<T> &in);
 
         private:
         /// Get a reference to the scheduler of Shamrock

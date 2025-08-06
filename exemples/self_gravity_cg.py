@@ -4,7 +4,7 @@ import numpy as np
 import shamrock
 
 
-def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
+def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=1):
     ctx = shamrock.Context()
     ctx.pdata_layout_new()
     model = shamrock.get_Model_Ramses(context=ctx, vector_type="f64_3", grid_repr="i64_3")
@@ -27,7 +27,7 @@ def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     cfg.set_gravity_mode_cg()
 
     model.set_solver_config(cfg)
-    model.init_scheduler(int(1e7), 1)
+    model.init_scheduler(int(1e4), 1)
     model.make_base_grid((0, 0, 0), (sz, sz, sz), (base * multx, base * multy, base * multz))
 
     def rho_map(rmin, rmax):
@@ -52,7 +52,8 @@ def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
 
     def phi_map(rmin, rmax):
         rho = rho_map(rmin, rmax)
-        return phi0 * rho
+        return phi0
+        # * rho
 
     model.set_field_value_lambda_f64("rho", rho_map)
     model.set_field_value_lambda_f64("rhoetot", rhoe_map)
@@ -140,8 +141,8 @@ def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
         print(f"\n\n===================================== zmin [bf]=================\n\n")
         """
 
-        if k % freq == 0:
-            model.dump_vtk("test" + str(k) + ".vtk")
+        # if k % freq == 0:
+        #     model.dump_vtk("test" + str(k) + ".vtk")
 
         model.evolve_once_override_time(t, dt)
 
@@ -182,6 +183,7 @@ run_sim(X, rho, phi, phi_ana)
 plt.plot(X, phi, ".", label="phi-num")
 plt.plot(X, phi_ana, ".", label="phi-ana")
 plt.legend()
-plt.show()
+plt.savefig("with-ghost-64-2mpi.png", format="png")
+# plt.show()
 
 # print(f"len(X) = {len(X)}\n")

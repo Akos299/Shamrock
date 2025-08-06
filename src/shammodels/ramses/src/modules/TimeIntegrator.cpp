@@ -165,12 +165,14 @@ void shammodels::basegodunov::modules::TimeIntegrator<Tvec, TgridVec>::forward_e
                 auto acc_phi_new = phi_new_patch.get_read_access(depends_list);
                 auto acc_phi_old = phi_old.get_write_access(depends_list);
 
+                // auto inc = 2;
+
                 auto e = q.submit(depends_list, [&, dt](sycl::handler &cgh) {
                     shambase::parallel_for(cgh, cell_count, "saveback", [=](u32 id_a) {
-                        // logger::raw_ln("phi_old [bf] =  ", acc_phi_old[id_a]);
+                        logger::raw_ln("phi_old [bf] =  ", id_a, acc_phi_old[id_a]);
                         acc_phi_old[id_a] = acc_phi_new[id_a];
-                        // logger::raw_ln("phi_new =  ", acc_phi_new[id_a]);
-                        // logger::raw_ln("phi_old [af] =  ", acc_phi_old[id_a]);
+                        logger::raw_ln("phi_new =  ", id_a, acc_phi_new[id_a]);
+                        logger::raw_ln("phi_old [af] =  ", id_a, acc_phi_old[id_a]);
                     });
                 });
 

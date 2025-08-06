@@ -381,6 +381,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
     ////////////////////////////////////////////////////////////////////////////////
     /// Self-Gravity
     ////////////////////////////////////////////////////////////////////////////////
+
     if (solver_config.is_gravity_on()) {
         storage.refs_phi
             = std::make_shared<shamrock::solvergraph::FieldRefs<Tscal>>("phi", "\\phi");
@@ -479,7 +480,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
 
     if (solver_config.is_gravity_on()) {
 
-        u32 Niter_max = 150;
+        u32 Niter_max = 1;
         modules::NodeCGLoop<Tvec, TgridVec> node{
             context,
             solver_config,
@@ -1001,6 +1002,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
     gz.build_ghost_cache();
 
     gz.exchange_ghost();
+    // gz.merge_phi_ghost();
 
     // compute prim variable
     {
@@ -1029,6 +1031,12 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
     if (solver_config.drag_config.drag_solver_config == DragSolverMode::NoDrag) {
         modules::TimeIntegrator dt_integ(context, solver_config, storage);
         dt_integ.forward_euler(dt_input);
+
+        // if(solver_config.is_gravity_on())
+        //     {
+        //           storage.merged_phi.reset();
+        //     }
+
     } else if (solver_config.drag_config.drag_solver_config == DragSolverMode::IRK1) {
         modules::DragIntegrator drag_integ(context, solver_config, storage);
         drag_integ.involve_with_no_src(dt_input);
@@ -1040,6 +1048,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
     } else {
         shambase::throw_unimplemented();
     }
+
+    // gz.merge_phi_ghost();
 
     modules::AMRGridRefinementHandler refinement(context, solver_config, storage);
     refinement.update_refinement();
@@ -1070,6 +1080,11 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
         storage.rho_d_next_no_drag.reset();
         storage.rhov_d_next_no_drag.reset();
     }
+
+    // if(solver_config.is_gravity_on())
+    // {
+    //     storage.merged_phi.reset();
+    // }
 
     storage.merge_patch_bounds.reset();
 
