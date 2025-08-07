@@ -50,7 +50,9 @@
 #include "shammodels/ramses/modules/TimeIntegrator.hpp"
 #include "shammodels/ramses/solvegraph/OrientedAMRGraphEdge.hpp"
 #include "shamrock/io/LegacyVtkWritter.hpp"
+#include "shamrock/scheduler/ComputeField.hpp"
 #include "shamrock/solvergraph/Field.hpp"
+#include "shamrock/solvergraph/FieldRefs.hpp"
 #include "shamrock/solvergraph/FieldSpan.hpp"
 #include "shamrock/solvergraph/NodeFreeAlloc.hpp"
 #include "shamrock/solvergraph/OperationSequence.hpp"
@@ -480,7 +482,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
 
     if (solver_config.is_gravity_on()) {
 
-        u32 Niter_max = 1;
+        u32 Niter_max = 2;
         modules::NodeCGLoop<Tvec, TgridVec> node{
             context,
             solver_config,
@@ -1002,6 +1004,11 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
     gz.build_ghost_cache();
 
     gz.exchange_ghost();
+
+    // shamrock::ComputeField<Tscal> &cccc  = storage.dtrho.get();
+    // shamrock::ComputeField<Tscal> out = gz.template exchange_compute_field<Tscal>(cccc);
+    // auto ff = gz.template exchange_solvergraph_field_refs<Tscal>(*storage.refs_phi.get());
+
     // gz.merge_phi_ghost();
 
     // compute prim variable

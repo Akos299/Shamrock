@@ -43,7 +43,7 @@ namespace {
                 cell_counts,
                 [alpha](u32 i, const T *__restrict phi_p, T *__restrict phi) {
                     phi[i] = phi[i] + alpha * phi_p[i];
-                    logger::raw_ln("phi_id", phi[i]);
+                    // logger::raw_ln("phi_id", phi[i]);
                 });
         }
     };

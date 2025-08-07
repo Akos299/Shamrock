@@ -16,10 +16,12 @@
  */
 
 #include "shambase/aliases_int.hpp"
+#include "shambase/memory.hpp"
 #include "shambackends/vec.hpp"
 #include "shammodels/ramses/SolverConfig.hpp"
 #include "shammodels/ramses/modules/NodeCGLoop.hpp"
 #include "shammodels/ramses/solvegraph/OrientedAMRGraphEdge.hpp"
+#include "shamrock/solvergraph/FieldRefs.hpp"
 #include "shamrock/solvergraph/IFieldSpan.hpp"
 #include "shamrock/solvergraph/INode.hpp"
 #include "shamrock/solvergraph/Indexes.hpp"
@@ -92,8 +94,37 @@ namespace shammodels::basegodunov::modules {
             /** compute p_{k+1} = r_{k+1} + \beta_{k} p_{k} */
             node8.evaluate();
 
-            storage.merged_phi.reset();
-            gz.merge_phi_ghost();
+            // storage.merged_phi.reset();
+            // gz.merge_phi_ghost();
+
+            shambase::get_check_ref(context.sched)
+                .for_each_patchdata_nonempty(
+                    [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+                        PatchDataField<Tscal> &receiver_patch = edges.spans_phi.get(p.id_patch);
+                        // logger::raw_ln(
+                        //     "span_phi bf [", p.id_patch, "] ", receiver_patch.get_obj_cnt(),
+                        //     "\n");
+                    });
+
+            std::shared_ptr<shamrock::solvergraph::FieldRefs<Tscal>> phi_field_with_ghost
+                = gz.template exchange_solvergraph_field_refs<Tscal>(edges.spans_phi);
+
+            shambase::get_check_ref(context.sched)
+                .for_each_patchdata_nonempty(
+                    [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+                        std::reference_wrapper<PatchDataField<Tscal>> receiver_patch
+                            = shambase::get_check_ref(phi_field_with_ghost).get(p.id_patch);
+                        logger::raw_ln(
+                            "span_phi gz [",
+                            p.id_patch,
+                            "] ",
+                            receiver_patch.get().get_obj_cnt(),
+                            "\n");
+                    });
+            // edges.spans_phi.free_alloc();
+            edges.spans_phi.set_refs(shambase::get_check_ref(phi_field_with_ghost).get_refs());
+
+            // edges.spans_phi.check_sizes(edges.sizes.indexes);
 
             if (sycl::sqrt(edges.old_values.value) < tol)
                 break;

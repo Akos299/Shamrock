@@ -169,10 +169,10 @@ void shammodels::basegodunov::modules::TimeIntegrator<Tvec, TgridVec>::forward_e
 
                 auto e = q.submit(depends_list, [&, dt](sycl::handler &cgh) {
                     shambase::parallel_for(cgh, cell_count, "saveback", [=](u32 id_a) {
-                        logger::raw_ln("phi_old [bf] =  ", id_a, acc_phi_old[id_a]);
+                        // logger::raw_ln("phi_old [bf] =  ", id_a, acc_phi_old[id_a]);
                         acc_phi_old[id_a] = acc_phi_new[id_a];
-                        logger::raw_ln("phi_new =  ", id_a, acc_phi_new[id_a]);
-                        logger::raw_ln("phi_old [af] =  ", id_a, acc_phi_old[id_a]);
+                        // logger::raw_ln("phi_new =  ", id_a, acc_phi_new[id_a]);
+                        // logger::raw_ln("phi_old [af] =  ", id_a, acc_phi_old[id_a]);
                     });
                 });
 

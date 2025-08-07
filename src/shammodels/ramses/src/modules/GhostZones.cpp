@@ -17,6 +17,7 @@
  */
 
 #include "shambase/DistributedData.hpp"
+#include "shambase/aliases_float.hpp"
 #include "shambase/aliases_int.hpp"
 #include "shambase/memory.hpp"
 #include "shambase/stacktrace.hpp"
@@ -25,6 +26,8 @@
 #include "shamalgs/numeric.hpp"
 #include "shamalgs/serialize.hpp"
 #include "shambackends/sycl_utils.hpp"
+#include "shambackends/typeAliasVec.hpp"
+#include "shamcomm/logs.hpp"
 #include "shammath/AABB.hpp"
 #include "shammath/CoordRange.hpp"
 #include "shammodels/ramses/GhostZoneData.hpp"
@@ -37,6 +40,7 @@
 #include "shamrock/solvergraph/FieldRefs.hpp"
 #include "shamsys/NodeInstance.hpp"
 #include "shamsys/legacy/log.hpp"
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -811,6 +815,7 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::merge_phi_gho
     }
 }
 
+/*
 template<class Tvec, class TgridVec>
 template<class T>
 shamrock::solvergraph::Field<T>
@@ -871,10 +876,11 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergra
     storage.timings_details.interface += time_exchange.elasped_sec();
     return out;
 }
+*/
 
 template<class Tvec, class TgridVec>
 template<class T>
-shamrock::solvergraph::FieldRefs<T>
+std::shared_ptr<shamrock::solvergraph::FieldRefs<T>>
 shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergraph_field_refs(
     shamrock::solvergraph::FieldRefs<T> &in) {
 
@@ -897,40 +903,100 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergra
     GZData &gen_ghost = storage.ghost_zone_infos.get();
     auto pdat_interf  = gen_ghost.template build_interface_native<PatchDataField<T>>(
         [&](u64 sender, u64, InterfaceBuildInfos binfos, sycl::buffer<u32> &buf_idx, u32 cnt) {
+            // logger::raw_ln("p.id_patch in [sz]", in.get_refs().get_element_count(), "\n");
+
             PatchDataField<T> &sender_patch = in.get(sender);
             PatchDataField<T> pdat(sender_patch.get_name(), sender_patch.get_nvar(), cnt);
             return pdat;
         });
 
+    // Declaration and initialization of output ptr
+    std::shared_ptr<shamrock::solvergraph::FieldRefs<T>> out_1
+        = std::make_shared<shamrock::solvergraph::FieldRefs<T>>(
+            "out_field_ref_1", "out_field_ref_1");
+
     // communicate buffers
     shambase::DistributedDataShared<PatchDataField<T>> interf_pdat
         = communicate_pdat_field<T>(std::move(pdat_interf));
 
+    // compute number of elements that will be received per patch
     std::map<u64, u64> sz_interf_map;
     interf_pdat.for_each([&](u64 s, u64 r, PatchDataField<T> &pdat_interf) {
         sz_interf_map[r] += pdat_interf.get_obj_cnt();
     });
 
-    shamrock::solvergraph::FieldRefs<T> out;
+    // DistributedData of std::reference_wrapper<PatchDataField<T> initialize with "in"
+    // declared here because of the move contructor
+    auto persist_patch_dd = in.get_refs().template map<std::reference_wrapper<PatchDataField<T>>>(
+        [&](u64 id, std::reference_wrapper<PatchDataField<T>> ref_pdat) {
+            return ref_pdat;
+        });
 
     scheduler().for_each_patchdata_nonempty(
         [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
-            PatchDataField<T> &receiver_patch = in.get(p.id_patch);
-
-            PatchDataField<T> new_pdat(receiver_patch);
-            interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
-                if (receiver == p.id_patch) {
-                    new_pdat.insert(interface);
-                }
-            });
-            out.get_refs().add_obj(
-                p.id_patch, std::move(std::reference_wrapper<PatchDataField<T>>(new_pdat)));
+            PatchDataField<T> &receiver_patch_1 = persist_patch_dd.get(p.id_patch).get();
+            logger::raw_ln(
+                "persist_patch_dd [", p.id_patch, "] ", receiver_patch_1.get_obj_cnt(), "\n");
         });
 
-    out.set_refs(out.get_refs()); // this is just to call sync_spans()
+    scheduler().for_each_patchdata_nonempty([&](const shamrock::patch::Patch p,
+                                                shamrock::patch::PatchData &pdat) {
+        PatchDataField<T> &receiver_patch = in.get(p.id_patch);
+        logger::raw_ln(
+            "p.id_patch old patch bf [", p.id_patch, "] ", receiver_patch.get_obj_cnt(), "\n");
+
+        PatchDataField<T> new_pdat(receiver_patch);
+
+        logger::raw_ln("interf map at [ ", p.id_patch, " ]", sz_interf_map.at(p.id_patch), "\n");
+
+        logger::raw_ln(
+            "new at [ ",
+            p.id_patch,
+            " ]",
+            persist_patch_dd.get(p.id_patch).get().get_obj_cnt(),
+            "\n");
+
+        auto pdat_sz_no_gz
+            = persist_patch_dd.get(p.id_patch).get().get_obj_cnt() - sz_interf_map.at(p.id_patch);
+
+        logger::raw_ln("length ", pdat_sz_no_gz, "\n");
+
+        persist_patch_dd.get(p.id_patch).get().resize((u32) pdat_sz_no_gz);
+
+        interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
+            logger::raw_ln("p.id_patch interf obj ", interface.get_obj_cnt(), "\n");
+            if (receiver == p.id_patch) {
+                new_pdat.insert(interface);
+                persist_patch_dd.get(p.id_patch).get().insert(interface);
+            }
+        });
+
+        logger::raw_ln(
+            "p.id_patch old patch [", p.id_patch, "] ", receiver_patch.get_obj_cnt(), "\n");
+        logger::raw_ln("p.id_patch new patch [", p.id_patch, "] ", new_pdat.get_obj_cnt(), "\n");
+        logger::raw_ln(
+            "p.id_patch persist patch [",
+            p.id_patch,
+            "] ",
+            persist_patch_dd.get(p.id_patch).get().get_obj_cnt(),
+            "\n");
+
+        shambase::get_check_ref(out_1).get_refs().add_obj(
+            p.id_patch, std::ref(persist_patch_dd.get(p.id_patch).get()));
+    });
+
+    scheduler().for_each_patchdata_nonempty(
+        [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+            PatchDataField<T> &receiver_patch_1 = persist_patch_dd.get(p.id_patch).get();
+            logger::raw_ln(
+                "persist_patch_dd af [", p.id_patch, "] ", receiver_patch_1.get_obj_cnt(), "\n");
+        });
+
+    shambase::get_check_ref(out_1).set_refs(shambase::get_check_ref(out_1).get_refs());
+
     exchange_time.end();
     storage.timings_details.interface += exchange_time.elasped_sec();
-    return out;
+    return out_1;
 }
 
 // doxygen does not have a clue of what is happenning here
@@ -944,6 +1010,36 @@ namespace shammodels::basegodunov::modules {
     template shamrock::ComputeField<f64_8>
     GhostZones<f64_3, i64_3>::exchange_compute_field<f64_8>(shamrock::ComputeField<f64_8> &in);
 
+    /// Explicit instanciation of the GhostZones class to exchange
+    /// compute fields of f64
+    // template class GhostZones<f64_3, i64_3>;
+    template shamrock::ComputeField<f64>
+    GhostZones<f64_3, i64_3>::exchange_compute_field<f64>(shamrock::ComputeField<f64> &in);
+
+    /// Explicit instanciation of the GhostZones class to exchange
+    /// solvergraph::FieldRefs of f64
+    template std::shared_ptr<shamrock::solvergraph::FieldRefs<f64>>
+    GhostZones<f64_3, i64_3>::exchange_solvergraph_field_refs<f64>(
+        shamrock::solvergraph::FieldRefs<f64> &in);
+
+    /// Explicit instanciation of the GhostZones class to exchange
+    /// solvergraph::FieldRefs of f64_3
+    template std::shared_ptr<shamrock::solvergraph::FieldRefs<f64_3>>
+    GhostZones<f64_3, i64_3>::exchange_solvergraph_field_refs<f64_3>(
+        shamrock::solvergraph::FieldRefs<f64_3> &in);
+
+    // /// Explicit instanciation of the GhostZones class to exchange
+    // /// solvergraph::Field of f64
+    // template shamrock::solvergraph::Field<f64>
+    // GhostZones<f64_3, i64_3>::exchange_solvergraph_field<f64>(shamrock::solvergraph::Field<f64>
+    // &in);
+
+    // /// Explicit instanciation of the GhostZones class to exchange
+    // /// solvergraph::Field of f64_3
+    // template shamrock::solvergraph::Field<f64_3>
+    // GhostZones<f64_3,
+    // i64_3>::exchange_solvergraph_field<f64_3>(shamrock::solvergraph::Field<f64_3> &in);
+
     /// Explicit instanciation of the GhostZones class to communicate
     /// compute fields of f64_8
     template shambase::DistributedDataShared<PatchDataField<f64_8>>
@@ -952,3 +1048,5 @@ namespace shammodels::basegodunov::modules {
 
 } // namespace shammodels::basegodunov::modules
 #endif
+
+template class shammodels::basegodunov::GhostZonesData<f64_3, i64_3>;

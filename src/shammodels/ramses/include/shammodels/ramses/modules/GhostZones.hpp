@@ -200,7 +200,7 @@ namespace shammodels::basegodunov::modules {
          * @return the exchanged solvergraph::FieldRefs
          */
         template<class T>
-        shamrock::solvergraph::FieldRefs<T>
+        std::shared_ptr<shamrock::solvergraph::FieldRefs<T>>
         exchange_solvergraph_field_refs(shamrock::solvergraph::FieldRefs<T> &in);
 
         /**
