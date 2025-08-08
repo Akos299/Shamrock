@@ -28,6 +28,7 @@
 #include "shamrock/solvergraph/ScalarEdge.hpp"
 #include <shambackends/sycl.hpp>
 #include <memory>
+#include <utility>
 
 namespace shammodels::basegodunov::modules {
     template<class Tvec, class TgridVec>
@@ -97,41 +98,45 @@ namespace shammodels::basegodunov::modules {
             // storage.merged_phi.reset();
             // gz.merge_phi_ghost();
 
-            shambase::get_check_ref(context.sched)
-                .for_each_patchdata_nonempty(
-                    [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
-                        PatchDataField<Tscal> &receiver_patch = edges.spans_phi.get(p.id_patch);
-                        // logger::raw_ln(
-                        //     "span_phi bf [", p.id_patch, "] ", receiver_patch.get_obj_cnt(),
-                        //     "\n");
-                    });
+            /** update ghosts */
 
+            ///  exchange gravitational potential ghost datas
             std::shared_ptr<shamrock::solvergraph::FieldRefs<Tscal>> phi_field_with_ghost
                 = gz.template exchange_solvergraph_field_refs<Tscal>(edges.spans_phi);
+            edges.spans_phi.set_refs(shambase::get_check_ref(phi_field_with_ghost).get_refs());
+            edges.spans_phi.check_sizes(edges.sizes.indexes);
+
+            ///  exchange p_{k} ghost datas
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_p_field_with_ghost
+                = gz.template exchange_solvergraph_field<Tscal>(
+                    AMRBlock::block_size, edges.spans_phi_p);
 
             shambase::get_check_ref(context.sched)
                 .for_each_patchdata_nonempty(
                     [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
                         std::reference_wrapper<PatchDataField<Tscal>> receiver_patch
-                            = shambase::get_check_ref(phi_field_with_ghost).get(p.id_patch);
+                            = shambase::get_check_ref(phi_p_field_with_ghost).get_field(p.id_patch);
                         logger::raw_ln(
-                            "span_phi gz [",
+                            "span_phi_p gz [",
                             p.id_patch,
                             "] ",
                             receiver_patch.get().get_obj_cnt(),
                             "\n");
                     });
-            // edges.spans_phi.free_alloc();
-            edges.spans_phi.set_refs(shambase::get_check_ref(phi_field_with_ghost).get_refs());
 
-            // edges.spans_phi.check_sizes(edges.sizes.indexes);
+            // edges.spans_phi_p.get_fields() =
+            // std::move(shambase::get_check_ref(phi_p_field_with_ghost).get_fields());
+            // edges.spans_phi_p.sync_all();
+
+            logger::raw_ln("check sz bf "
+                           "\n");
+            edges.spans_phi_p.check_sizes(edges.sizes.indexes);
+            logger::raw_ln("check sz af "
+                           "\n");
 
             if (sycl::sqrt(edges.old_values.value) < tol)
                 break;
-            // storage.merged_phi.reset();
         }
-
-        //  gz.merge_phi_ghost();
     }
 
     template<class Tvec, class TgridVec>

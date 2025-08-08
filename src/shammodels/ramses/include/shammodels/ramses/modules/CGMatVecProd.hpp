@@ -21,6 +21,7 @@
 #include "shambackends/vec.hpp"
 #include "shammodels/ramses/SolverConfig.hpp"
 #include "shammodels/ramses/solvegraph/OrientedAMRGraphEdge.hpp"
+#include "shamrock/solvergraph/Field.hpp"
 #include "shamrock/solvergraph/IFieldSpan.hpp"
 #include "shamrock/solvergraph/INode.hpp"
 #include "shamrock/solvergraph/Indexes.hpp"
@@ -40,17 +41,17 @@ namespace shammodels::basegodunov::modules {
         struct Edges {
             const shamrock::solvergraph::Indexes<u32> &sizes;
             const solvergraph::OrientedAMRGraphEdge<Tvec, TgridVec> &cell_neigh_graph;
-            const shamrock::solvergraph::IFieldSpan<Tscal> &spans_block_cell_sizes;
-            const shamrock::solvergraph::IFieldSpan<Tscal> &spans_phi_p;
-            shamrock::solvergraph::IFieldSpan<Tscal> &spans_phi_Ap;
+            const shamrock::solvergraph::Field<Tscal> &spans_block_cell_sizes;
+            const shamrock::solvergraph::Field<Tscal> &spans_phi_p;
+            shamrock::solvergraph::Field<Tscal> &spans_phi_Ap;
         };
 
         inline void set_edges(
             std::shared_ptr<shamrock::solvergraph::Indexes<u32>> sizes,
             std::shared_ptr<solvergraph::OrientedAMRGraphEdge<Tvec, TgridVec>> cell_neigh_graph,
-            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_block_cell_sizes,
-            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_phi_p,
-            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_phi_Ap) {
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_block_cell_sizes,
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_p,
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_Ap) {
             __internal_set_ro_edges({sizes, cell_neigh_graph, spans_block_cell_sizes, spans_phi_p});
             __internal_set_rw_edges({spans_phi_Ap});
         }
@@ -59,9 +60,9 @@ namespace shammodels::basegodunov::modules {
             return Edges{
                 get_ro_edge<shamrock::solvergraph::Indexes<u32>>(0),
                 get_ro_edge<solvergraph::OrientedAMRGraphEdge<Tvec, TgridVec>>(1),
-                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(2),
-                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(3),
-                get_rw_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(0)};
+                get_ro_edge<shamrock::solvergraph::Field<Tscal>>(2),
+                get_ro_edge<shamrock::solvergraph::Field<Tscal>>(3),
+                get_rw_edge<shamrock::solvergraph::Field<Tscal>>(0)};
         }
 
         void _impl_evaluate_internal();

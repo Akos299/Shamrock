@@ -206,13 +206,13 @@ namespace shammodels::basegodunov::modules {
         /**
          * @brief Exchange the ghost zones of a given solvergraph::Field and return the merged data
          * after the exchange
-         *
+         * @param nvar
          * @param in solvergraph::Field to exchange
          * @return the exchanged solvergraph::Field
          */
         template<class T>
-        shamrock::solvergraph::Field<T>
-        exchange_solvergraph_field(shamrock::solvergraph::Field<T> &in);
+        std::shared_ptr<shamrock::solvergraph::Field<T>>
+        exchange_solvergraph_field(u32 nvar, shamrock::solvergraph::Field<T> &in);
 
         private:
         /// Get a reference to the scheduler of Shamrock

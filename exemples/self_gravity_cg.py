@@ -4,7 +4,7 @@ import numpy as np
 import shamrock
 
 
-def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=1):
+def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     ctx = shamrock.Context()
     ctx.pdata_layout_new()
     model = shamrock.get_Model_Ramses(context=ctx, vector_type="f64_3", grid_repr="i64_3")
@@ -183,7 +183,7 @@ run_sim(X, rho, phi, phi_ana)
 plt.plot(X, phi, ".", label="phi-num")
 plt.plot(X, phi_ana, ".", label="phi-ana")
 plt.legend()
-plt.savefig("with-ghost-64-2mpi.png", format="png")
+plt.savefig("with-ghost-64-2mpi_bis.png", format="png")
 # plt.show()
 
 # print(f"len(X) = {len(X)}\n")

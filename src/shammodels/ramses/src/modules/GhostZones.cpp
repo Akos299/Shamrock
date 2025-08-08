@@ -815,12 +815,11 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::merge_phi_gho
     }
 }
 
-/*
 template<class Tvec, class TgridVec>
 template<class T>
-shamrock::solvergraph::Field<T>
+std::shared_ptr<shamrock::solvergraph::Field<T>>
 shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergraph_field(
-    shamrock::solvergraph::Field<T> &in) {
+    u32 nvar, shamrock::solvergraph::Field<T> &in) {
     StackEntry stack_loc{};
 
     shambase::Timer time_exchange;
@@ -841,42 +840,95 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergra
     auto pdat_interf  = gen_ghost.template build_interface_native<PatchDataField<T>>(
         [&](u64 sender, u64, InterfaceBuildInfos binfos, sycl::buffer<u32> &buf_idx, u32 cnt) {
             PatchDataField<T> &sender_patch = in.get_field(sender);
-
             PatchDataField<T> pdat(sender_patch.get_name(), sender_patch.get_nvar(), cnt);
 
             return pdat;
         });
 
+    // Declaration and initialization of output ptr
+    std::shared_ptr<shamrock::solvergraph::Field<T>> out_1
+        = std::make_shared<shamrock::solvergraph::Field<T>>(nvar, "out_field", "out_field");
+
     // communicate buffers
     shambase::DistributedDataShared<PatchDataField<T>> interf_pdat
         = communicate_pdat_field<T>(std::move(pdat_interf));
 
+    // compute number of elements that will be received per patch
     std::map<u64, u64> sz_interf_map;
     interf_pdat.for_each([&](u64 s, u64 r, PatchDataField<T> &pdat_interf) {
         sz_interf_map[r] += pdat_interf.get_obj_cnt();
     });
 
-    shamrock::solvergraph::Field<T> out;
+    // DistributedData of std::reference_wrapper<PatchDataField<T> initialize with "in"
+    // declared here because of the move contructor
+    auto persist_patch_dd = in.get_fields().field_data.template map<PatchDataField<T>>(
+        [&](u64 id, PatchDataField<T> ref_pdat) {
+            return ref_pdat;
+        });
+
+    ComputeField<T> cfield_out;
+
+    // for each patch remove old ghost cells and replace by new ghost cells
+    scheduler().for_each_patchdata_nonempty([&](const shamrock::patch::Patch p,
+                                                shamrock::patch::PatchData &pdat) {
+        // compute number of active cells (e.g without ghost cells)
+        auto pdat_sz_no_gz
+            = persist_patch_dd.get(p.id_patch).get_obj_cnt() - sz_interf_map.at(p.id_patch);
+        logger::raw_ln("length ", pdat_sz_no_gz, "\n");
+
+        logger::raw_ln(
+            "persist bf [ ",
+            p.id_patch,
+            " ]",
+            persist_patch_dd.get(p.id_patch).get_obj_cnt(),
+            "\n");
+        // remove old ghost cells
+        persist_patch_dd.get(p.id_patch).resize((u32) pdat_sz_no_gz);
+
+        logger::raw_ln(
+            "persist af [ ",
+            p.id_patch,
+            " ]",
+            persist_patch_dd.get(p.id_patch).get_obj_cnt(),
+            "\n");
+
+        // add new ghost cells
+        interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
+            logger::raw_ln("p.id_patch interf obj ", interface.get_obj_cnt(), "\n");
+            if (receiver == p.id_patch) {
+                persist_patch_dd.get(p.id_patch).insert(interface);
+            }
+            logger::raw_ln("persist obj ", persist_patch_dd.get(p.id_patch).get_obj_cnt(), "\n");
+        });
+
+        logger::raw_ln("persist obj bis ", persist_patch_dd.get(p.id_patch).get_obj_cnt(), "\n");
+
+        cfield_out.field_data.add_obj(p.id_patch, std::move(persist_patch_dd.get(p.id_patch)));
+        PatchDataField<T> &receiver_patch_1 = cfield_out.get_field(p.id_patch);
+    });
 
     scheduler().for_each_patchdata_nonempty(
         [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
-            PatchDataField<T> &receiver_patch = in.get_field(p.id_patch);
-            PatchDataField<T> new_pdat(receiver_patch);
-
-            interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
-                if (receiver == p.id_patch) {
-                    new_pdat.insert(interface);
-                }
-            });
-            out.get_fields().field_data.add_obj(p.id_patch, std::move(new_pdat));
+            PatchDataField<T> &receiver_patch_1 = cfield_out.get_field(p.id_patch);
+            logger::raw_ln("cfield_dd [", p.id_patch, "] ", receiver_patch_1.get_obj_cnt(), "\n");
         });
 
-    out.sync_all();
+    shambase::get_check_ref(out_1).get_fields() = std::move(cfield_out);
+
+    scheduler().for_each_patchdata_nonempty(
+        [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
+            PatchDataField<T> &receiver_patch_1
+                = shambase::get_check_ref(out_1).get_fields().get_field(p.id_patch);
+            logger::raw_ln("out1_dd [", p.id_patch, "] ", receiver_patch_1.get_obj_cnt(), "\n");
+        });
+
+    // synchronization of FieldRefs members
+    shambase::get_check_ref(out_1).sync_all();
+
     time_exchange.end();
     storage.timings_details.interface += time_exchange.elasped_sec();
-    return out;
+    return out_1;
 }
-*/
 
 template<class Tvec, class TgridVec>
 template<class T>
@@ -932,66 +984,29 @@ shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_solvergra
             return ref_pdat;
         });
 
-    scheduler().for_each_patchdata_nonempty(
-        [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
-            PatchDataField<T> &receiver_patch_1 = persist_patch_dd.get(p.id_patch).get();
-            logger::raw_ln(
-                "persist_patch_dd [", p.id_patch, "] ", receiver_patch_1.get_obj_cnt(), "\n");
-        });
-
+    // for each patch remove old ghost cells and replace by new ghost cells
     scheduler().for_each_patchdata_nonempty([&](const shamrock::patch::Patch p,
                                                 shamrock::patch::PatchData &pdat) {
-        PatchDataField<T> &receiver_patch = in.get(p.id_patch);
-        logger::raw_ln(
-            "p.id_patch old patch bf [", p.id_patch, "] ", receiver_patch.get_obj_cnt(), "\n");
-
-        PatchDataField<T> new_pdat(receiver_patch);
-
-        logger::raw_ln("interf map at [ ", p.id_patch, " ]", sz_interf_map.at(p.id_patch), "\n");
-
-        logger::raw_ln(
-            "new at [ ",
-            p.id_patch,
-            " ]",
-            persist_patch_dd.get(p.id_patch).get().get_obj_cnt(),
-            "\n");
-
+        // compute number of active cells (e.g without ghost cells)
         auto pdat_sz_no_gz
             = persist_patch_dd.get(p.id_patch).get().get_obj_cnt() - sz_interf_map.at(p.id_patch);
 
-        logger::raw_ln("length ", pdat_sz_no_gz, "\n");
-
+        // remove old ghost cells
         persist_patch_dd.get(p.id_patch).get().resize((u32) pdat_sz_no_gz);
 
+        // add new ghost cells
         interf_pdat.for_each([&](u64 sender, u64 receiver, PatchDataField<T> &interface) {
-            logger::raw_ln("p.id_patch interf obj ", interface.get_obj_cnt(), "\n");
             if (receiver == p.id_patch) {
-                new_pdat.insert(interface);
                 persist_patch_dd.get(p.id_patch).get().insert(interface);
             }
         });
 
-        logger::raw_ln(
-            "p.id_patch old patch [", p.id_patch, "] ", receiver_patch.get_obj_cnt(), "\n");
-        logger::raw_ln("p.id_patch new patch [", p.id_patch, "] ", new_pdat.get_obj_cnt(), "\n");
-        logger::raw_ln(
-            "p.id_patch persist patch [",
-            p.id_patch,
-            "] ",
-            persist_patch_dd.get(p.id_patch).get().get_obj_cnt(),
-            "\n");
-
+        // add the obtained  DDPatchDataFieldRef<T> to output's FieldRefs
         shambase::get_check_ref(out_1).get_refs().add_obj(
             p.id_patch, std::ref(persist_patch_dd.get(p.id_patch).get()));
     });
 
-    scheduler().for_each_patchdata_nonempty(
-        [&](const shamrock::patch::Patch p, shamrock::patch::PatchData &pdat) {
-            PatchDataField<T> &receiver_patch_1 = persist_patch_dd.get(p.id_patch).get();
-            logger::raw_ln(
-                "persist_patch_dd af [", p.id_patch, "] ", receiver_patch_1.get_obj_cnt(), "\n");
-        });
-
+    // synchronization of FieldRefs members
     shambase::get_check_ref(out_1).set_refs(shambase::get_check_ref(out_1).get_refs());
 
     exchange_time.end();
@@ -1028,17 +1043,17 @@ namespace shammodels::basegodunov::modules {
     GhostZones<f64_3, i64_3>::exchange_solvergraph_field_refs<f64_3>(
         shamrock::solvergraph::FieldRefs<f64_3> &in);
 
-    // /// Explicit instanciation of the GhostZones class to exchange
-    // /// solvergraph::Field of f64
-    // template shamrock::solvergraph::Field<f64>
-    // GhostZones<f64_3, i64_3>::exchange_solvergraph_field<f64>(shamrock::solvergraph::Field<f64>
-    // &in);
+    /// Explicit instanciation of the GhostZones class to exchange
+    /// solvergraph::Field of f64
+    template std::shared_ptr<shamrock::solvergraph::Field<f64>>
+    GhostZones<f64_3, i64_3>::exchange_solvergraph_field<f64>(
+        u32 nvar, shamrock::solvergraph::Field<f64> &in);
 
-    // /// Explicit instanciation of the GhostZones class to exchange
-    // /// solvergraph::Field of f64_3
-    // template shamrock::solvergraph::Field<f64_3>
-    // GhostZones<f64_3,
-    // i64_3>::exchange_solvergraph_field<f64_3>(shamrock::solvergraph::Field<f64_3> &in);
+    /// Explicit instanciation of the GhostZones class to exchange
+    /// solvergraph::Field of f64_3
+    template std::shared_ptr<shamrock::solvergraph::Field<f64_3>>
+    GhostZones<f64_3, i64_3>::exchange_solvergraph_field<f64_3>(
+        u32 nvar, shamrock::solvergraph::Field<f64_3> &in);
 
     /// Explicit instanciation of the GhostZones class to communicate
     /// compute fields of f64_8

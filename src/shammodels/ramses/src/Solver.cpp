@@ -482,7 +482,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
 
     if (solver_config.is_gravity_on()) {
 
-        u32 Niter_max = 2;
+        u32 Niter_max = 10;
         modules::NodeCGLoop<Tvec, TgridVec> node{
             context,
             solver_config,
