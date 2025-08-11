@@ -49,9 +49,9 @@ namespace {
                     const T *__restrict phi_Ap,
                     T *__restrict hadamard_prod) {
                     hadamard_prod[i] = phi_p[i] * phi_Ap[i];
-                    // logger::raw_ln("Hadamard  : ", hadamard_prod[i] );
-                    // logger::raw_ln("phi_p  : ",phi_p[i]);
-                    // logger::raw_ln("phi_Ap  : ",phi_Ap[i]);
+                    // logger::raw_ln("Hadamard  : ", hadamard_prod[i] , "\t");
+                    // logger::raw_ln("phi_p  : ",phi_p[i], "\t");
+                    // logger::raw_ln("phi_Ap  : ",phi_Ap[i], "\n");
                 });
         }
     };
