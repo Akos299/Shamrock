@@ -43,7 +43,7 @@ namespace shammodels::basegodunov::modules {
 
         // gz.merge_phi_ghost();
 
-        /* compute r0 = p0 = 4*\pi*G* \left( \rho - \bar{\rho} \right)*/
+        /* compute r0 = p0 = 4*\pi*G* \left( \rho - \bar{\rho} \right) - A \phi_{0}*/
         node0.evaluate();
 
         /* compute <r0,r0> and assign its value to  edges.old_values.value */
@@ -60,12 +60,13 @@ namespace shammodels::basegodunov::modules {
             /* compute Ap_{k} */
             node2.evaluate();
 
-            /** compute Hadamard product p X Ap such that \left( p_{k} X Ap_{k} \right)_{i} = \left(
-             * p_{i} * (Ap)_{i} \right) */
+            // /** compute Hadamard product p X Ap such that \left( p_{k} X Ap_{k} \right)_{i} =
+            // \left(
+            //  * p_{i} * (Ap)_{i} \right) */
             node3.evaluate();
 
-            /** compute the A-norm of p_{k} , <p_{k}, Ap_{k}> and assign its value to
-             * edges.e_norm.value */
+            // /** compute the A-norm of p_{k} , <p_{k}, Ap_{k}> and assign its value to
+            //  * edges.e_norm.value */
             node4.evaluate();
 
             /** compute \alpha_{k} = \frac{ <r_{k},r_{k}> }{ <p_{k},Ap_{k}> }*/

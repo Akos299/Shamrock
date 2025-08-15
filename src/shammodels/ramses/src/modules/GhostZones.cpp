@@ -467,6 +467,8 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_ghos
             PatchData pdat_new(ghost_layout);
 
             u32 or_elem = pdat.get_obj_cnt();
+            // shamlog_debug_ln("patchcount or", or_elem);
+            // shamlog_debug_ln("patchcount ghost", sz_interf_map[p.id_patch]);
             pdat_new.reserve(or_elem + sz_interf_map[p.id_patch]);
             u32 total_elements = or_elem;
 
@@ -517,6 +519,7 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_ghos
         shambase::get_check_ref(storage.block_counts).indexes
             = storage.merged_patchdata_ghost.get().template map<u32>(
                 [&](u64 id, MergedPDat &mpdat) {
+                    // logger::raw_ln("or [", id , "] = ", mpdat.original_elements);
                     return mpdat.original_elements;
                 });
     }
@@ -527,6 +530,7 @@ void shammodels::basegodunov::modules::GhostZones<Tvec, TgridVec>::exchange_ghos
         shambase::get_check_ref(storage.block_counts_with_ghost).indexes
             = storage.merged_patchdata_ghost.get().template map<u32>(
                 [&](u64 id, MergedPDat &mpdat) {
+                    // logger::raw_ln("tot [", id , "] = ", mpdat.total_elements);
                     return mpdat.total_elements;
                 });
     }

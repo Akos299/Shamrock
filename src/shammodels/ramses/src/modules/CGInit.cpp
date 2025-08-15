@@ -60,7 +60,8 @@ namespace {
                     AMRGraph &graph_neigh_zm = shambase::get_check_ref(
                         oriented_cell_graph.graph_links[shammodels::basegodunov::Direction::zm]);
 
-                    u32 cell_count       = (edges.sizes.indexes.get(id)) * block_size;
+                    u32 cell_count = (edges.sizes.indexes.get(id)) * block_size;
+                    // logger::raw_ln("cell_count init: ",    cell_count , "\n");
                     sham::DeviceQueue &q = shamsys::instance::get_compute_scheduler().get_queue();
 
                     sham::kernel_call(
@@ -107,6 +108,7 @@ namespace {
                                 });
 
                             auto res = fourPiG * (rho[cell_global_id] - mean_rho) - Aphi;
+
                             phi_res[cell_global_id] = res;
                             phi_p[cell_global_id]   = res;
                             // logger::raw_ln("Mean-rho ",mean_rho);

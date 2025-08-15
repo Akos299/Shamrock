@@ -59,6 +59,8 @@ namespace shammodels::basegodunov {
             u32 cnt = graph_links.for_each_object_link_cnt(cell_global_id, [&](u32 id_b) {
                 acc += field_access(id_b);
             });
+            // logger::raw_ln("cnt [", cell_global_id, "] : ",cnt);
+
             return (cnt > 0) ? acc / cnt : shambase::VectorProperties<T>::get_zero();
         };
 
@@ -79,8 +81,7 @@ namespace shammodels::basegodunov {
         // auto lev_diff_zp = block_level_acc(cell_global_id) - get_neigh_AMRlevel(graph_iter_zp);
         // auto lev_diff_zm = block_level_acc(cell_global_id) - get_neigh_AMRlevel(graph_iter_zm);
 
-        T W_i = field_access(cell_global_id);
-        // logger::raw_ln("W_i",W_i);
+        T W_i                = field_access(cell_global_id);
         T W_xp               = get_avg_neigh(graph_iter_xp);
         T W_xm               = get_avg_neigh(graph_iter_xm);
         T W_yp               = get_avg_neigh(graph_iter_yp);
@@ -89,11 +90,20 @@ namespace shammodels::basegodunov {
         T W_zm               = get_avg_neigh(graph_iter_zm);
         T inv_delta_cell_sqr = 1.0 / (delta_cell * delta_cell);
 
-        T laplace_x = inv_delta_cell_sqr * (W_xm - 2. * W_i + W_xp);
-        T laplace_y = inv_delta_cell_sqr * (W_ym - 2. * W_i + W_yp);
-        T laplace_z = inv_delta_cell_sqr * (W_zm - 2. * W_i + W_zp);
+        T laplace_x = inv_delta_cell_sqr * (-W_xm + 2. * W_i - W_xp);
+        T laplace_y = inv_delta_cell_sqr * (-W_ym + 2. * W_i - W_yp);
+        T laplace_z = inv_delta_cell_sqr * (-W_zm + 2. * W_i - W_zp);
 
-        return (laplace_x + laplace_y + laplace_z);
+        // logger::raw_ln("Delta_x", laplace_x, "\n");
+        // logger::raw_ln("Delta_y", laplace_y, "\n");
+        // logger::raw_ln("Delta_z", laplace_z, "\n");
+
+        T res = (laplace_x + laplace_y + laplace_z);
+
+        // if(0 > cell_global_id || cell_global_id >= 64)
+        //     res = 0;
+
+        return res;
         /*
                 T dx = bloc_size.x();
                 T dy = bloc_size.y();

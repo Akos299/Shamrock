@@ -32,11 +32,17 @@ namespace {
             const shambase::DistributedData<u32> &sizes,
             u32 block_size) {
 
+            u32 tt_cells       = 0;
+            u32 tt_block_count = 0;
             shambase::DistributedData<u32> cell_counts
                 = sizes.map<u32>([&](u64 id, u32 block_count) {
                       u32 cell_count = block_count * block_size;
+                      //   tt_cells += cell_count;
+                      //   tt_block_count+=block_count;
                       return cell_count;
                   });
+            //  logger::raw_ln("total cell_count : ",    tt_cells , "\t");
+            // logger::raw_ln("total block_count : ",    tt_block_count , "\t");
 
             sham::distributed_data_kernel_call(
                 shamsys::instance::get_compute_scheduler_ptr(),
@@ -49,9 +55,9 @@ namespace {
                     const T *__restrict phi_Ap,
                     T *__restrict hadamard_prod) {
                     hadamard_prod[i] = phi_p[i] * phi_Ap[i];
-                    // logger::raw_ln("Hadamard  : ", hadamard_prod[i] , "\t");
-                    // logger::raw_ln("phi_p  : ",phi_p[i], "\t");
-                    // logger::raw_ln("phi_Ap  : ",phi_Ap[i], "\n");
+                    // logger::raw_ln("Hadamard  : ",    i, "  " ,hadamard_prod[i] , "\t");
+                    // logger::raw_ln("phi_p  : "   ,    i, "  " ,phi_p[i], "\t");
+                    // logger::raw_ln("phi_Ap  : "  ,    i, "  " ,phi_Ap[i], "\n");
                 });
         }
     };
@@ -75,7 +81,7 @@ namespace shammodels::basegodunov::modules {
             edges.spans_phi_hadamard_prod.get_spans(),
             edges.sizes.indexes,
             block_size);
-        // logger::raw_ln(" P x AP ");
+        logger::raw_ln(" block_size ", block_size);
     }
 
     template<class T>

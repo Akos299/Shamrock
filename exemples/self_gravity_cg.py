@@ -14,7 +14,7 @@ def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     multz = 1
 
     sz = 1 << 1
-    base = 4
+    base = 32
 
     cfg = model.gen_default_config()
     scale_fact = 1 / (sz * base * multx)
@@ -27,12 +27,13 @@ def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
     cfg.set_gravity_mode_cg()
 
     model.set_solver_config(cfg)
-    model.init_scheduler(int(1e3), 1)
+    model.init_scheduler(int(1e7), 1)
     model.make_base_grid((0, 0, 0), (sz, sz, sz), (base * multx, base * multy, base * multz))
 
     def rho_map(rmin, rmax):
         x_mn, y_mn, z_mn = rmin
         x_mx, y_mx, z_mx = rmax
+
         x = 0.5 * (x_mn + x_mx)
         y = 0.5 * (y_mn + y_mx)
         z = 0.5 * (z_mn + z_mx)
@@ -52,7 +53,7 @@ def run_sim(X, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0=0):
 
     def phi_map(rmin, rmax):
         rho = rho_map(rmin, rmax)
-        return phi0
+        return 0
         # * rho
 
     model.set_field_value_lambda_f64("rho", rho_map)
