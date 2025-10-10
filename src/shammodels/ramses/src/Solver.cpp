@@ -37,6 +37,7 @@
 #include "shammodels/ramses/modules/FindGhostLayerIndices.hpp"
 #include "shammodels/ramses/modules/FuseGhostLayer.hpp"
 #include "shammodels/ramses/modules/InterpolateToFace.hpp"
+#include "shammodels/ramses/modules/NodeCGLoop.hpp"
 #include "shammodels/ramses/modules/NodeComputeFlux.hpp"
 #include "shammodels/ramses/modules/SlopeLimitedGradient.hpp"
 #include "shammodels/ramses/modules/TimeIntegrator.hpp"
@@ -451,6 +452,32 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
     }
 
     ////////////////////////////////////////////////////////////////////////////////
+    /// Self-Gravity
+    ////////////////////////////////////////////////////////////////////////////////
+
+    if (solver_config.is_gravity_on()) {
+        storage.refs_phi
+            = std::make_shared<shamrock::solvergraph::FieldRefs<Tscal>>("phi", "\\phi");
+        storage.phi_res = std::make_shared<shamrock::solvergraph::Field<Tscal>>(
+            AMRBlock::block_size, "Res", "Res");
+        storage.phi_p = std::make_shared<shamrock::solvergraph::Field<Tscal>>(
+            AMRBlock::block_size, "Phi_p", "Phi_p");
+        storage.phi_Ap = std::make_shared<shamrock::solvergraph::Field<Tscal>>(
+            AMRBlock::block_size, "Phi_Ap", "Phi_Ap");
+        storage.phi_hadamard_prod = std::make_shared<shamrock::solvergraph::Field<Tscal>>(
+            AMRBlock::block_size, "Phi_Hadamard_prod", "Phi_Hadamard_prod");
+        storage.e_norm
+            = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>("e_norm", "e_norm");
+        storage.alpha
+            = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>("alpha", "alpha");
+        storage.beta = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>("beta", "beta");
+        storage.old_val
+            = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>("old_val", "old_val");
+        storage.new_val
+            = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>("new_val", "new_val");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
     /// Nodes
     ////////////////////////////////////////////////////////////////////////////////
     std::vector<std::shared_ptr<shamrock::solvergraph::INode>> solver_sequence;
@@ -616,6 +643,14 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
             solver_sequence.push_back(
                 std::make_shared<decltype(attach_rhov_dust)>(std::move(attach_rhov_dust)));
         }
+
+        if (solver_config.is_gravity_on()) {
+            shamrock::solvergraph::GetFieldRefFromLayer<Tscal> attach_phi
+                = shamrock::solvergraph::GetFieldRefFromLayer<Tscal>(storage.ghost_layout, "phi");
+            attach_phi.set_edges(storage.merged_patchdata_ghost, storage.refs_phi);
+            solver_sequence.push_back(
+                std::make_shared<decltype(attach_phi)>(std::move(attach_phi)));
+        }
     }
 
     { // build trees
@@ -685,6 +720,36 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
         node2.set_edges(
             storage.block_counts, storage.cell_mass, storage.simulation_volume, storage.rho_mean);
         solver_sequence.push_back(std::make_shared<decltype(node2)>(std::move(node2)));
+    }
+
+    if (solver_config.is_gravity_on()) {
+        if (solver_config.gravity_config.gravity_mode == CG) {
+            modules::NodeCGLoop<Tvec, TgridVec> node{
+                AMRBlock::block_size,
+                solver_config.get_constant_4piG(),
+                solver_config.gravity_config.Niter_max,
+                solver_config.get_grav_tol()};
+            node.set_edges(
+                storage.block_counts_with_ghost,
+                storage.cell_graph_edge,
+                storage.block_cell_sizes,
+                storage.refs_rho,
+                storage.rho_mean,
+                storage.idx_in_ghost,
+                storage.patch_rank_owner,
+                storage.refs_phi,
+                storage.phi_res,
+                storage.phi_p,
+                storage.phi_Ap,
+                storage.phi_hadamard_prod,
+                storage.old_val,
+                storage.new_val,
+                storage.e_norm,
+                storage.alpha,
+                storage.beta);
+
+            solver_sequence.push_back(std::make_shared<decltype(node)>(std::move(node)));
+        }
     }
 
     { // Build ConsToPrim node

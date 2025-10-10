@@ -43,6 +43,13 @@ set(Sources
     src/modules/ExtractGhostLayer.cpp
     src/modules/TransformGhostLayer.cpp
     src/modules/FuseGhostLayer.cpp
+
+    src/modules/NodeSpMVPoisson3D.cpp
+    src/modules/NodeHadamardProd.cpp
+    src/modules/NodeSumReduction.cpp
+    src/modules/NodeAXPYTwoVectors.cpp
+    src/modules/NodeAYPXTwoVectors.cpp
+    src/modules/NodeCGLoop.cpp
 )
 
 if(SHAMROCK_USE_SHARED_LIB)
