@@ -52,7 +52,7 @@ namespace shammodels::basegodunov::modules {
         u32 k = 0;
         logger::raw_ln(" k = ", k);
         logger::raw_ln(" RES = ", edges.old_values.value);
-     edges.old_values.value = 5 *  edges.old_values.value;
+    //  edges.old_values.value = 5 *  edges.old_values.value;
 
         while (k < Niter_max) {
             k = k + 1;
@@ -93,7 +93,13 @@ namespace shammodels::basegodunov::modules {
             logger::raw_ln(" RES = ", edges.old_values.value, "\n");
 
             node8.evaluate();
+
+
+              if (sycl::sqrt(edges.old_values.value) < tol)
+                break;
         }
+
+        
     }
 
     template<class Tvec, class TgridVec>

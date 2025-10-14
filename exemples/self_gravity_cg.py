@@ -14,7 +14,7 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     multz = 1
 
     sz = 1 << 1
-    base = 16
+    base = 2
 
     cfg = model.gen_default_config()
     scale_fact = 1 / (sz * base * multx)
@@ -26,7 +26,7 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     cfg.set_gravity_mode_cg()
     cfg.set_self_gravity_G_values(True, 1.0)
     cfg.set_self_gravity_Niter_max(50)
-    cfg.set_self_gravity_tol(1e-15)
+    cfg.set_self_gravity_tol(1e-6)
     cfg.set_self_gravity_happy_breakdown_tol(1e-6)
 
     model.set_solver_config(cfg)
@@ -36,11 +36,11 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     def rho_map(rmin, rmax):
         x_mn, y_mn, z_mn = rmin
         x_mx, y_mx, z_mx = rmax
-        x, y, z = rmin
+        # x, y, z = rmin
 
-        # x = 0.5 * (x_mn + x_mx)
-        # y = 0.5 * (y_mn + y_mx)
-        # z = 0.5 * (z_mn + z_mx)
+        x = 0.5 * (x_mn + x_mx)
+        y = 0.5 * (y_mn + y_mx)
+        z = 0.5 * (z_mn + z_mx)
 
         res = rho0 + A * np.sin((2 * np.pi * x) / Lx) * np.sin((2 * np.pi * y) / Ly) * np.sin(
             (2 * np.pi * z) / Lz
@@ -166,20 +166,20 @@ def analytic_phi(X, Y, Z, Lx, Ly, Lz, G, A, phi_0):
     d = a * b * c
     print(f"{a.shape}, {b.shape}, {c.shape}, {d.shape}\n")
     res = phi_0 + C * (np.sin(cx * X) * np.sin(cy * Y) * np.sin(cz * Z))
-    # res [np.abs(res) < 1e-10] = 0.
+    res [np.abs(res) < 1e-10] = 0.
 
     return res
 
 
 ana = analytic_phi(np.array(X), np.array(Y), np.array(Z), 1, 1, 1, 1, 1, 0)
 
-# print("===================================")
-# for i in range(len(X)):
-#     res = phi[i]
-#     # if(np.abs(phi[i]) < 1e-10):
-#     #     phi[i] = 0
-#     print(f"[{i}]: {ana[i]} -- {phi[i]} \n")
-# print("===================================")
+print("===================================")
+for i in range(len(X)):
+    res = phi[i]
+    # if(np.abs(phi[i]) < 1e-10):
+    #     phi[i] = 0
+    print(f"[{i}]: {ana[i]} -- {phi[i]} \n")
+print("===================================")
 
 diff = np.array(phi) - ana
 plt.plot(np.array(X), ana, ".", label="phi-ana-t")
