@@ -28,7 +28,7 @@
 template<class Tvec, class TgridVec>
 template<class UserAcc, class... T>
 void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    gen_refine_block_changes(
+    gen_refine_block_changes_new(
         shambase::DistributedData<sham::DeviceBuffer<u32>> &dd_refine_flags,
         shambase::DistributedData<sham::DeviceBuffer<u32>> &dd_derefine_flags,
         T &&...args) {
@@ -92,7 +92,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
  */
 template<class Tvec, class TgridVec>
 void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    enforce_two_to_one_refinement(
+    enforce_two_to_one_refinement_new(
         shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_refine_flags) {
 
     scheduler().for_each_patchdata_nonempty([&](Patch cur_p, PatchDataLayer &pdat) {
@@ -247,7 +247,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 
 template<class Tvec, class TgridVec>
 void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    enforce_two_to_one_derefinement(
+    enforce_two_to_one_derefinement_new(
         shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_derefine_flags,
         shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_refine_flags) {
 
@@ -536,7 +536,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 template<class Tvec, class TgridVec>
 template<class UserAcc>
 bool shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    internal_refine_grid(shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_refine_flags) {
+    internal_refine_grid_new(shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_refine_flags) {
 
     u64 sum_block_count = 0;
 
@@ -629,7 +629,7 @@ bool shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 template<class Tvec, class TgridVec>
 template<class UserAcc>
 bool shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    internal_derefine_grid(shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_derefine_flags) {
+    internal_derefine_grid_new(shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_derefine_flags) {
 
     using namespace shamrock::patch;
 
@@ -742,7 +742,7 @@ bool shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 template<class Tvec, class TgridVec>
 template<class UserAccCrit, class UserAccSplit, class UserAccMerge>
 void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    internal_update_refinement() {
+    internal_update_refinement_new() {
 
     // Ensure that the blocks are sorted before refinement
     AMRSortBlocks block_sorter(context, solver_config, storage);
@@ -768,7 +768,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
 
 template<class Tvec, class TgridVec>
 void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>::
-    update_refinement() {
+    update_refinement_new() {
 
     class RefineCritBlock {
         public:
@@ -2024,7 +2024,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             = std::get_if<AMRmode_DensityBased>(&solver_config.amr_mode.config)) {
 
             Tscal dxfact(solver_config.grid_coord_to_pos_fact);
-            gen_refine_block_changes<RefineCritBlock>(
+            gen_refine_block_changes_new<RefineCritBlock>(
                 refine_list, derefine_list, dxfact, cfg->crit_mass);
         }
 
@@ -2032,7 +2032,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             AMRmode_PseudoGradientBased *cfg
             = std::get_if<AMRmode_PseudoGradientBased>(&solver_config.amr_mode.config)) {
 
-            gen_refine_block_changes<RefineCritPseudoGradientAccessor>(
+            gen_refine_block_changes_new<RefineCritPseudoGradientAccessor>(
                 refine_list, derefine_list, cfg->error_min, cfg->error_max);
         }
 
@@ -2052,7 +2052,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             else {
                 shambase::throw_with_loc<std::runtime_error>("EOS is not Barotropic");
             }
-            gen_refine_block_changes<RefineCritJeansLengthAccessor>(
+            gen_refine_block_changes_new<RefineCritJeansLengthAccessor>(
                 refine_list, derefine_list, dxfact, cfg->N_J, solver_config.eos_config);
         }
 
@@ -2062,25 +2062,25 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             Tscal dxfact(solver_config.grid_coord_to_pos_fact);
             Tscal gamma (solver_config.eos_gamma);
 
-            gen_refine_block_changes<RefineCritShearAccessor>(
+            gen_refine_block_changes_new<RefineCritShearAccessor>(
                 refine_list, derefine_list, cfg->threshold,  gamma , dxfact);
 
         }
 
         ///// enforce 2:1 for refinement ///////
-        enforce_two_to_one_refinement(std::move(refine_list));
+        enforce_two_to_one_refinement_new(std::move(refine_list));
         /////// enforce 2:1 for derefinement //////
-        enforce_two_to_one_derefinement(std::move(derefine_list), std::move(refine_list));
+        enforce_two_to_one_derefinement_new(std::move(derefine_list), std::move(refine_list));
         //////// apply refine ////////
         // Note that this only add new blocks at the end of the patchdata
-        bool change_refine = internal_refine_grid<RefineCellAccessor>(std::move(refine_list));
+        bool change_refine = internal_refine_grid_new<RefineCellAccessor>(std::move(refine_list));
 
         //////// apply derefine ////////
         // Note that this will perform the merge then remove the old blocks
         // This is ok to call straight after the refine without edditing the index list in
         // derefine_list since no permutations were applied in internal_refine_grid and no cells can
         // be both refined and derefined in the same pass
-        bool change_derefine = internal_derefine_grid<RefineCellAccessor>(std::move(derefine_list));
+        bool change_derefine = internal_derefine_grid_new<RefineCellAccessor>(std::move(derefine_list));
 
         has_cell_order_changed = has_cell_order_changed || (change_refine || change_derefine);
 
