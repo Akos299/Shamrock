@@ -50,7 +50,7 @@ namespace shammodels::basegodunov::modules {
         AMRGridRefinementHandler(ShamrockCtx &context, Config &solver_config, Storage &storage)
             : context(context), solver_config(solver_config), storage(storage) {}
 
-        void update_refinement();
+        void update_refinement_new();
 
         private:
         /**
@@ -68,20 +68,20 @@ namespace shammodels::basegodunov::modules {
          * @param args
          */
         template<class UserAcc, class... T>
-        void gen_refine_block_changes(
+        void gen_refine_block_changes_new(
             shambase::DistributedData<sham::DeviceBuffer<u32>> &refine_list,
             shambase::DistributedData<sham::DeviceBuffer<u32>> &derefine_list,
             T &&...args);
 
         template<class UserAcc>
-        bool internal_refine_grid(shambase::DistributedData<sham::DeviceBuffer<u32>> &&refine_list);
+        bool internal_refine_grid_new(shambase::DistributedData<sham::DeviceBuffer<u32>> &&refine_list);
 
         template<class UserAcc>
-        bool internal_derefine_grid(
+        bool internal_derefine_grid_new(
             shambase::DistributedData<sham::DeviceBuffer<u32>> &&derefine_list);
 
         template<class UserAccCrit, class UserAccSplit, class UserAccMerge>
-        void internal_update_refinement();
+        void internal_update_refinement_new();
 
         inline PatchScheduler &scheduler() { return shambase::get_check_ref(context.sched); }
     };
