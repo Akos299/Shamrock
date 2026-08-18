@@ -100,7 +100,8 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
 
                     // auto m_H = 1.67262192e-27;  //[kg]
                     // auto kb = 1.380649e-23;
-                    auto T = 10.;
+                    //auto T = 10.;
+		    auto T = 10.747;
 
                     auto cs0_sqr  = (kb * T) / (mu * m_H);
                     auto rho_crit = 3.7e-13* 1e3; //[kg*m^-3]

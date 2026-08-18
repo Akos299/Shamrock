@@ -149,7 +149,8 @@ namespace shammath {
         auto m_H = 1.67262192e-27; //[kg]
         auto kb  = 1.380649e-23;
         auto mu  = 2.3; // molecular gas
-        auto T   = 10.;
+        //auto T   = 10.;
+	auto T = 10.747;
 	 auto rho_c =  3.7e-13 * 1e3; // [g/cm^3 ===> kg/m^3]
 
         auto cs0_sqr = (kb * T) / (mu * m_H);
@@ -165,7 +166,6 @@ namespace shammath {
         ConsState<Tvec> flux;
 
         const PrimState<Tvec> prim = cons_to_prim(cons, gamma);
-
         flux.rho = cons.rhovel[0];
 
         flux.rhoe = (cons.rhoe + prim.press) * prim.vel[0];
@@ -189,7 +189,8 @@ namespace shammath {
         auto mu  = 2.3;                // molecular gas
         
               
-        auto T = 10.;
+        //auto T = 10.;
+	auto T = 10.747;
         auto cs0_sqr  = (kb * T) / (mu * m_H);
         auto cs_sqr = cs0_sqr * (1. + (5.0/3.0) * sycl::pow(prim.rho/rho_c,2./3.));
 

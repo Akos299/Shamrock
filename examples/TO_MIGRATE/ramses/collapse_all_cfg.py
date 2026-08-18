@@ -5,6 +5,8 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 
+
+
 import shamrock
 
 if not shamrock.sys.is_initialized():
@@ -14,6 +16,9 @@ if not shamrock.sys.is_initialized():
 
 def get_mass(R, rho):
     return rho * (4.0 * np.pi / 3.0) * (R**3)
+
+def get_omega(G,beta,M,R):
+    return np.sqrt(3.0* beta * G * M/R**3)
 
 
 si = shamrock.UnitSystem()
@@ -29,13 +34,14 @@ kb = ucte.kb()
 m_H = ucte.proton_mass()  # [kg]
 
 
-T0 = 10.0  # [K]
+#T0 = 10.0  # [K]
+T0 = 10.747 
 R0 = 7.07e16 * 1e-2  # [cm -> m]
 
 rho0 = 1.38e-18 * 1e3  # [g/cm^3 -> kg/m^3]
 M0 = get_mass(R0, rho0)  # [kg]
 mu = 2.3  # molecular gas
-# m_H = 1.6735e-27  # [kg]
+
 
 print(f"proton-mass = {m_H} \n")
 E_th0 = (3.0 * M0 * kb * T0) / (2 * mu * m_H)  # [J]
@@ -58,10 +64,13 @@ min_reso = (L0 * N_J) / (lamb_J)
 print(f"min reso = {min_reso}\n")
 gamma = 5.0 / 3.0
 
-rho_c =  3.7e-13*1e3 #[g/cm^3 ==> kg/m^3]
+rho_c = 3.7e-13 * 1e3 # [g/cm^3 -> kg/m^3]
 
 
-def run_sim():
+def run_sim(beta = 0.04, A=0.1, with_rotation=False, with_fragmentation=False):
+
+    omega_0 = get_omega(G,beta,M0,R0)
+    print(f"omega_0 = {omega_0} [1/s] \n")
 
     shamrock.enable_experimental_features()
     ctx = shamrock.Context()
@@ -76,9 +85,7 @@ def run_sim():
     max_amr_lev = 16
     sz = 2 << max_amr_lev
 
-    # sz= 2
-
-    base = 32
+    base = 64
 
     cfg = model.gen_default_config()
     scale_fact = L0 / (sz * base * multx)
@@ -97,47 +104,66 @@ def run_sim():
     cfg.set_riemann_solver_hllc()
 
     cfg.set_self_gravity_G_values(True, G)
-    cfg.set_self_gravity_Niter_max(3000)
+    cfg.set_self_gravity_Niter_max(10000)
     cfg.set_self_gravity_tol(1e-6)
     cfg.set_coupling_gravity_mode_ramses_like()
 
-    # err_min = 0.25
-    # err_max = 0.10
-    # cfg.set_amr_mode_pseudo_gradient_based(error_min=err_min, error_max=err_max)
     cfg.set_amr_mode_jeans_length_based(N_jeans=N_J, T_init=T0)
 
     model.set_solver_config(cfg)
     model.init_scheduler(int(500000), 1)
     model.make_base_grid((0, 0, 0), (sz, sz, sz), (base * multx, base * multy, base * multz))
 
+    def cell_center(rmin, rmax):
+
+        x = 0.5*(rmin[0]+rmax[0]) - 0.5*L0
+        y = 0.5*(rmin[1]+rmax[1]) - 0.5*L0
+        z = 0.5*(rmin[2]+rmax[2]) - 0.5*L0
+
+        return x, y, z
+
     ### Gas maps
     def rho_map(rmin, rmax) -> float:
-        x_mn, y_mn, z_mn = rmin
-        x_mx, y_mx, z_mx = rmax
 
-        x = 0.5 * (x_mn + x_mx) - 0.5 * L0
-        y = 0.5 * (y_mn + y_mx) - 0.5 * L0
-        z = 0.5 * (z_mn + z_mx) - 0.5 * L0
+        x,y,z = cell_center(rmin,rmax)
         r = np.sqrt(x**2 + y**2 + z**2)
 
-        if r < R0:
-            return rho0
-        else:
-            return rho0 / 100
+        rho_ret = rho0/100
 
+        if r < R0:
+            rho_ret = rho0
+            if(with_fragmentation):
+                phi = np.arctan2(y,x)
+                rho_ret *= (1.0 + A * np.cos(2.0*phi))
+    
+        return rho_ret
+            
+        
     def rhovel_map(rmin, rmax):
+        
+        x,y,z = cell_center(rmin,rmax)
+        r = np.sqrt(x**2 + y**2 + z**2)
+        rho = rho_map(rmin,rmax)
+
+        if(with_rotation and r< R0):
+            vx = -omega_0 * y
+            vy = omega_0 * x
+            vz = 0.0
+
+            return (rho * vx , rho* vy, rho*vz)
+
         return (0.0, 0.0, 0.0)
+    
+
 
     def rhoe_map(rmin, rmax):
         rho = rho_map(rmin, rmax)
         rhov = rhovel_map(rmin, rmax)
-        Ekin = 0.5 * (rhov[0]**2)/rho
+        Ekin = 0.5 * (rhov[0]**2 + rhov[1]**2 + rhov[2]**2)/rho
         x = rho / rho_c
         P = cs_sqr * rho * (1. + x**(2./3.))
-        Eint = P / (gamma - 1.0)
-
+        Eint = P / (gamma - 1.0) 
         return  Ekin + Eint
-
 
     model.set_field_value_lambda_f64("rho", rho_map)
     model.set_field_value_lambda_f64("rhoetot", rhoe_map)
@@ -148,7 +174,6 @@ def run_sim():
     dt = 0
     freq = 50
     dX0 = []
-    times = []
     for i in range(int(1e7)):
         next_dt = model.evolve_once_override_time(t, dt)
 
@@ -156,16 +181,34 @@ def run_sim():
         dt = next_dt
 
         if i % freq == 0:
-            model.dump_vtk(f"base32_NJ16_Max_10_bar_collapse_{t/t_ff:6f}.vtk")
-            times.append(t)
+            model.dump_vtk(f"rotational_collapse_frag_Lmin_7_{t/t_ff:5f}.vtk")
 
         if tmax < t + next_dt:
             dt = tmax - t
         if t == tmax:
-            model.dump_vtk(f"base32_NJ16_Max_10_bar_collapse{t/t_ff:6f}.vtk")
-            times.append(t)
+            model.dump_vtk(f"rotational_collapse_frag_Lmin_7_{t/t_ff:5f}.vtk")
             break
-    print(f"times = {times}\n")
 
 
-run_sim()
+# # ---------------------------------------------------
+# # 1. Non-rotating collapse
+# # ---------------------------------------------------
+# run_sim(
+#     with_rotation=False,
+#     with_fragmentation=False,
+# )
+
+## ---------------------------------------------------
+## 2. Rotating collapse
+## ---------------------------------------------------
+#run_sim(
+#    with_rotation=True,
+#    with_fragmentation=False,
+#)
+
+# ---------------------------------------------------
+# 3. Rotating collapse with m=2 perturbation
+# ---------------------------------------------------
+run_sim(
+     with_rotation=True,
+     with_fragmentation=True,)
