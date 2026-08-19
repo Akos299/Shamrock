@@ -400,9 +400,12 @@ namespace shammodels::basegodunov {
                 [](T &self, Tscal t) {
                     return self.solver.solver_config.set_time(t);
                 })
-            .def("set_next_dt", [](T &self, Tscal dt) {
-                return self.solver.solver_config.set_next_dt(dt);
-            });
+            .def(
+                "set_next_dt",
+                [](T &self, Tscal dt) {
+                    return self.solver.solver_config.set_next_dt(dt);
+                })
+            .def("get_self_gravity_nb_iter", &T::self_gravity_nb_iter);
     }
 } // namespace shammodels::basegodunov
 

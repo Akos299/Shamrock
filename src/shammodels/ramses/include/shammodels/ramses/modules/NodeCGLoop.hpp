@@ -160,6 +160,7 @@ namespace shammodels::basegodunov::modules {
             shamrock::solvergraph::ScalarEdge<Tscal> &rz_old_values;
             shamrock::solvergraph::ScalarEdge<Tscal> &rz_new_values;
             shamrock::solvergraph::Field<Tscal> &spans_rz_hadamard_prod;
+            shamrock::solvergraph::ScalarEdge<Tscal> &nb_iter;
         };
 
         inline void set_edges(
@@ -186,7 +187,8 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_z,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> rz_old_values,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> rz_new_values,
-            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_rz_hadamard_prod) {
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_rz_hadamard_prod,
+            std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> nb_iter) {
             __internal_set_ro_edges(
                 {sizes,
                  sizes_no_gz,
@@ -213,7 +215,8 @@ namespace shammodels::basegodunov::modules {
                  spans_phi_z,
                  rz_old_values,
                  rz_new_values,
-                 spans_rz_hadamard_prod});
+                 spans_rz_hadamard_prod,
+                 nb_iter});
 
             // set cg_init_node edges
             cg_init_node.set_edges(
@@ -303,6 +306,7 @@ namespace shammodels::basegodunov::modules {
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(13),
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(14),
                 get_rw_edge<shamrock::solvergraph::Field<Tscal>>(15),
+                get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(16),
 
                 //
             };

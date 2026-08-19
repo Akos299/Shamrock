@@ -125,6 +125,8 @@ namespace shammodels::basegodunov::modules {
                     break;
                 }
             }
+
+            edges.nb_iter.value = k;
         }
     }
 

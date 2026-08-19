@@ -107,6 +107,8 @@ namespace shammodels::basegodunov {
         }
 
         void init_solver_graph();
+
+        inline u32 self_gravity_nb_iter() { return shambase::get_check_ref(storage.nb_iter).value; }
     };
 
 } // namespace shammodels::basegodunov

@@ -722,6 +722,10 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
     ////////////////////////////////////////////////////////////////////////////////
 
     if (solver_config.is_gravity_on()) {
+
+        storage.nb_iter
+            = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>("nb_iter", "nb_iter");
+
         storage.refs_phi = std::make_shared<shamrock::solvergraph::FieldRefs<Tscal>>(
             "phi_old", "\\phi_\\mathrm{old}");
         storage.refs_phi_new
@@ -1154,7 +1158,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.phi_z,
                 storage.rz_old_val,
                 storage.rz_new_val,
-                storage.rz_hadamard_prod);
+                storage.rz_hadamard_prod,
+                storage.nb_iter);
 
             start_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_cg_old)>(std::move(node_cg_old)));
@@ -1814,7 +1819,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.phi_z,
                 storage.rz_old_val,
                 storage.rz_new_val,
-                storage.rz_hadamard_prod);
+                storage.rz_hadamard_prod,
+                storage.nb_iter);
 
             end_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_cg_next)>(std::move(node_cg_next)));
@@ -2062,6 +2068,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
         modules::TimeIntegratorSelfGravity dt_integ_self_gravity(context, solver_config, storage);
         dt_integ_self_gravity.forward_euler(dt_input);
     }
+
     // {
     //     modules::NodeConsToPrimGas<Tvec> node_ctp_after_updated{
     //         AMRBlock::block_size, solver_config.eos_gamma};

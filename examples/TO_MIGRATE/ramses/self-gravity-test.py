@@ -16,7 +16,7 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     multz = 1
 
     sz = 1 << 1
-    base = 16
+    base = 8
 
     cfg = model.gen_default_config()
     scale_fact = 1 / (sz * base * multx)
@@ -25,9 +25,9 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     cfg.set_eos_gamma(1.4)
     cfg.set_slope_lim_vanleer_sym()
     cfg.set_face_time_interpolation(False)
-    # cfg.set_gravity_mode_cg()
+    cfg.set_gravity_mode_cg()
     # cfg.set_gravity_mode_pcg()
-    cfg.set_gravity_mode_bicgstab()
+    # cfg.set_gravity_mode_bicgstab()
     cfg.set_self_gravity_G_values(True, 1.0)
     cfg.set_self_gravity_Niter_max(1500)
     cfg.set_self_gravity_tol(1e-6)
@@ -38,21 +38,29 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     model.init_scheduler(int(4000000), 1)
     model.make_base_grid((0, 0, 0), (sz, sz, sz), (base * multx, base * multy, base * multz))
 
+    # def rho_map(rmin, rmax):
+    #     x_mn, y_mn, z_mn = rmin
+    #     x_mx, y_mx, z_mx = rmax
+
+    #     x = 0.5 * (x_mn + x_mx)
+    #     y = 0.5 * (y_mn + y_mx)
+    #     z = 0.5 * (z_mn + z_mx)
+
+    # res = (
+    #     np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) * np.cos(2 * np.pi * z)
+    #     + 0.5 * np.cos(4 * np.pi * x) * np.cos(2 * np.pi * y) * np.cos(2 * np.pi * z)
+    #     + (1 / 3) * np.cos(2 * np.pi * x) * np.cos(4 * np.pi * y) * np.cos(6 * np.pi * z)
+    # )
+
+    #     # return 2 + res
+
     def rho_map(rmin, rmax):
-        x_mn, y_mn, z_mn = rmin
-        x_mx, y_mx, z_mx = rmax
-
-        x = 0.5 * (x_mn + x_mx)
-        y = 0.5 * (y_mn + y_mx)
-        z = 0.5 * (z_mn + z_mx)
-
-        res = (
-            np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) * np.cos(2 * np.pi * z)
-            + 0.5 * np.cos(4 * np.pi * x) * np.cos(2 * np.pi * y) * np.cos(2 * np.pi * z)
-            + (1 / 3) * np.cos(2 * np.pi * x) * np.cos(4 * np.pi * y) * np.cos(6 * np.pi * z)
-        )
-
-        return 2 + res
+        x = 0.5 * (rmin[0] + rmax[0])
+        y = 0.5 * (rmin[1] + rmax[1])
+        z = 0.5 * (rmin[2] + rmax[2])
+        sigma = 3 * scale_fact  # quelques cellules de large
+        r2 = (x - 0.5) ** 2 + (y - 0.5) ** 2 + (z - 0.5) ** 2
+        return 2 + 10 * np.exp(-r2 / (2 * sigma**2))
 
     def rhoe_map(rmin, rmax):
         rho = rho_map(rmin, rmax)
@@ -117,7 +125,7 @@ def run_sim(X, Y, Z, rho, phi, phi_ana, Lx=1, Ly=1, Lz=1, rho0=2, G=1, A=1, phi0
     # dt = 0.01226171192153859
     t = 0
     tend = 0.245
-    Max_iter = 1
+    Max_iter = 2
 
     for k in range(Max_iter):
         # if k % freq == 0:
@@ -170,6 +178,29 @@ def analytic_phi(X, Y, Z, Lx, Ly, Lz, G, A=1, phi_0=0):
     )
 
     return res
+
+
+def analytic_phi_gaussian(
+    X, Y, Z, sigma, amp, G=1.0, x0=0.5, y0=0.5, z0=0.5, kmax=None, rel_tol=1e-12
+):
+    if kmax is None:
+        # borne kmax tel que exp(-2 pi^2 sigma^2 kmax^2) < rel_tol
+        kmax = int(np.ceil(np.sqrt(-np.log(rel_tol) / (2 * np.pi**2 * sigma**2))))
+        kmax = max(kmax, 1)
+
+    res = np.zeros_like(X)
+    for kx in range(-kmax, kmax + 1):
+        for ky in range(-kmax, kmax + 1):
+            for kz in range(-kmax, kmax + 1):
+                k2 = kx * kx + ky * ky + kz * kz
+                if k2 == 0:
+                    continue
+                fk = amp * np.exp(-2 * np.pi**2 * sigma**2 * k2)
+                if fk < rel_tol * amp:
+                    continue
+                phase = 2 * np.pi * (kx * (X - x0) + ky * (Y - y0) + kz * (Z - z0))
+                res += (fk / k2) * np.cos(phase)
+    return -(G / np.pi) * res, kmax
 
 
 # ============ L2 DIFF ============
