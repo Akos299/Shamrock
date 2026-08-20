@@ -92,23 +92,7 @@ namespace {
 
                         Tscal delta_cell = cell_sizes[block_id];
 
-                        // auto Aphi        = shammodels::basegodunov::laplacian_7pt<Tscal, Tvec>(
-                        //     cell_sizes,
-                        //     block_size,
-                        //     cell_global_id,
-                        //     graph_iter_xp,
-                        //     graph_iter_xm,
-                        //     graph_iter_yp,
-                        //     graph_iter_ym,
-                        //     graph_iter_zp,
-                        //     graph_iter_zm,
-                        //     [=](u32 id) {
-                        //         return sycl::isnan(phi[id]) ? 0.0 : phi[id];
-                        //     });
-
-                        auto jac_weight = shammodels::basegodunov::JacobiWeight<Tscal>{Tscal(1.0)};
-
-                        auto Aphi = shammodels::basegodunov::laplacian_7pt_2<Tscal, Tvec>(
+                        auto Aphi = shammodels::basegodunov::laplacian_7pt<Tscal, Tvec>(
                             cell_sizes,
                             block_size,
                             cell_global_id,
@@ -118,11 +102,27 @@ namespace {
                             graph_iter_ym,
                             graph_iter_zp,
                             graph_iter_zm,
-                            // shammodels::basegodunov::NoJacobiWeight{},
-                            jac_weight,
                             [=](u32 id) {
                                 return sycl::isnan(phi[id]) ? 0.0 : phi[id];
                             });
+
+                        auto jac_weight = shammodels::basegodunov::JacobiWeight<Tscal>{Tscal(1.0)};
+
+                        // auto Aphi = shammodels::basegodunov::laplacian_7pt_2<Tscal, Tvec>(
+                        //     cell_sizes,
+                        //     block_size,
+                        //     cell_global_id,
+                        //     graph_iter_xp,
+                        //     graph_iter_xm,
+                        //     graph_iter_yp,
+                        //     graph_iter_ym,
+                        //     graph_iter_zp,
+                        //     graph_iter_zm,
+                        //     // shammodels::basegodunov::NoJacobiWeight{},
+                        //     jac_weight,
+                        //     [=](u32 id) {
+                        //         return sycl::isnan(phi[id]) ? 0.0 : phi[id];
+                        //     });
 
                         auto dV    = delta_cell * delta_cell * delta_cell;
                         auto b_rhs = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
@@ -131,9 +131,11 @@ namespace {
                         phi_res[cell_global_id] = res;
                         rhs[cell_global_id]     = b_rhs;
 
-                        phi_z[cell_global_id] = res / jac_weight.value;
+                        phi_z[cell_global_id] = res;
+                        // / jac_weight.value;
                         //  / (6.0 * delta_cell);
-                        phi_p[cell_global_id] = res / jac_weight.value;
+                        phi_p[cell_global_id] = res;
+                        // / jac_weight.value;
                         //   / (6.0 * delta_cell);
 
                         // if (jac_weight.value != 6.0 * delta_cell)

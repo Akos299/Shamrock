@@ -46,7 +46,6 @@
 #include "shammodels/ramses/modules/NodeComputeFlux.hpp"
 #include "shammodels/ramses/modules/NodeGetNextConsVar.hpp"
 #include "shammodels/ramses/modules/NodeNextRho.hpp"
-#include "shammodels/ramses/modules/NodePCGLoop.hpp"
 #include "shammodels/ramses/modules/NodeSelfGravityAcceleration.hpp"
 #include "shammodels/ramses/modules/SlopeLimitedGradient.hpp"
 #include "shammodels/ramses/modules/SumFluxDust.hpp"
@@ -794,6 +793,11 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
         //
         storage.phi_ghosts = std::make_shared<shamrock::solvergraph::PatchDataFieldDDShared<Tscal>>(
             "phi_ghots", "phi_ghots");
+
+        if (solver_config.gravity_config.gravity_mode == BICGSTAB) {
+            storage.shadow_res_norm = std::make_shared<shamrock::solvergraph::ScalarEdge<Tscal>>(
+                "rstar_norm", "rstar_norm");
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -1197,7 +1201,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.e_norm,
                 storage.alpha,
                 storage.beta,
-                storage.wstab_val);
+                storage.wstab_val,
+                storage.shadow_res_norm);
 
             start_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_bicgstab_old)>(std::move(node_bicgstab_old)));
@@ -1858,7 +1863,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.e_norm,
                 storage.alpha,
                 storage.beta,
-                storage.wstab_val);
+                storage.wstab_val,
+                storage.shadow_res_norm);
 
             end_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_bicgstab_next)>(std::move(node_bicgstab_next)));

@@ -112,6 +112,9 @@ namespace shammodels::basegodunov::modules {
         // p_{k+1} = r_{k+1} node
         modules::NodeOverwrite<Tscal> node_overwrite_p{block_size};
 
+        // ddot <r*_k,r*_k> node
+        modules::ResidualDot<Tscal> node_ddot_rstarj_rstarj{block_size};
+
         //
         std::shared_ptr<shamrock::solvergraph::PatchDataFieldDDShared<Tscal>> p_ghosts
             = std::make_shared<shamrock::solvergraph::PatchDataFieldDDShared<Tscal>>(
@@ -159,6 +162,7 @@ namespace shammodels::basegodunov::modules {
             shamrock::solvergraph::ScalarEdge<Tscal> &alpha;
             shamrock::solvergraph::ScalarEdge<Tscal> &beta;
             shamrock::solvergraph::ScalarEdge<Tscal> &w_stab;
+            shamrock::solvergraph::ScalarEdge<Tscal> &shadow_res_norm;
         };
 
         inline void set_edges(
@@ -183,7 +187,8 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> e_norm,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> alpha,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> beta,
-            std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> w_stab
+            std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> w_stab,
+            std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> shadow_res_norm
 
         ) {
             __internal_set_ro_edges(
@@ -209,7 +214,8 @@ namespace shammodels::basegodunov::modules {
                  e_norm,
                  alpha,
                  beta,
-                 w_stab
+                 w_stab,
+                 shadow_res_norm
 
                 });
 
@@ -297,6 +303,9 @@ namespace shammodels::basegodunov::modules {
 
             // replace ghosts for s-vectors
             node_replace_gz_s.set_edges(p_ghosts, spans_phi_s);
+
+            //
+            node_ddot_rstarj_rstarj.set_edges(sizes_no_gz, spans_phi_res_bis, shadow_res_norm);
         }
 
         inline Edges get_edges() {
@@ -322,7 +331,9 @@ namespace shammodels::basegodunov::modules {
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(10),
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(11),
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(12),
-                get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(13)
+                get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(13),
+                get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(14),
+
                 //
             };
         }

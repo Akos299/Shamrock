@@ -284,6 +284,7 @@ namespace shammodels::basegodunov {
         std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_s;
         std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_As;
         std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> wstab_val;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> shadow_res_norm;
 
         std::shared_ptr<shamrock::solvergraph::PatchDataFieldDDShared<Tscal>> phi_ghosts;
 

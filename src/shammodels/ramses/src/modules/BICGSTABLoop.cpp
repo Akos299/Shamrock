@@ -51,6 +51,10 @@ namespace shammodels::basegodunov::modules {
          *          p0 =  r0
          */
         node_init.evaluate();
+
+        /** compute <r'_0,r'_0>*/
+        node_ddot_rstarj_rstarj.evaluate();
+
         u32 k = 0;
         /* Main loop */
         while ((k < Niter_max)) {
@@ -64,9 +68,6 @@ namespace shammodels::basegodunov::modules {
             // if (shamcomm::world_rank() == 0) {
             //     logger::raw_ln("k= \t ", k, " \t res = \t", edges.old_values.value);
             // }
-
-            // increment iteration
-            k = k + 1;
 
             //--------------------------------
             /* comm of p vector*/
@@ -88,12 +89,39 @@ namespace shammodels::basegodunov::modules {
             /** compute <Ap_{k}, r'_{0}> and assign its value to edges.e_norm.value*/
             node_ddot_Apj_rp0.evaluate();
 
-            /** compute \alpha_{k} = \frac{ <r_{k},r'_{0}> }{ <r'_{0},Ap_{k}> }*/
-            edges.alpha.value = edges.old_values.value / edges.e_norm.value;
+            // /** compute \alpha_{k} = \frac{ <r_{k},r'_{0}> }{ <r'_{0},Ap_{k}> }*/
+            // // // edges.alpha.value = edges.old_values.value / edges.e_norm.value;
 
-            // if (shamcomm::world_rank() == 0) {
-            //     logger::raw_ln("edges.alpha.value = \t ", k, " \t ", edges.alpha.value);
-            // }
+            const auto sigma = edges.e_norm.value;
+
+            const f64 breakdown_tol = 0.0;
+            // std::numeric_limits<f64>::epsilon();
+
+            /** BiCGSTAB breakdown check */
+            if (sycl::fabs(sigma) <= breakdown_tol) {
+                logger::raw_ln("BiCGSTAB breakdown: sigma = ", sigma);
+                break;
+                // restart mechanism to be implemented
+
+            } else {
+                edges.alpha.value = edges.old_values.value / sigma;
+            }
+
+            logger::raw_ln(
+                "k=",
+                k,
+                " rho=",
+                edges.old_values.value,
+                " sigma=",
+                sigma,
+                " alpha=",
+                edges.alpha.value,
+
+                "\t\n\n");
+
+            if (shamcomm::world_rank() == 0) {
+                logger::raw_ln("edges.alpha.value = \t ", k, " \t ", edges.alpha.value);
+            }
 
             auto alp_saved = edges.alpha.value;
 
@@ -115,7 +143,7 @@ namespace shammodels::basegodunov::modules {
                 edges.alpha.value = alp_saved;
                 node_new_phi_happy_break.evaluate();
                 if (shamcomm::world_rank() == 0) {
-                    logger::raw_ln("Converge on s-residual \n");
+                    logger::raw_ln("Converge on s-residual @@@@@@@@@@ \n");
                 }
 
                 break;
@@ -150,11 +178,27 @@ namespace shammodels::basegodunov::modules {
             // }
 
             /** compute w_{k} and set its value to edges.w_stab.value*/
-            edges.w_stab.value = (edges.e_norm.value / edges.new_values.value);
+            // edges.w_stab.value = (edges.e_norm.value / edges.new_values.value);
+
+            /** breakdown: ||As_k||^2 too small */
+            if (edges.new_values.value <= breakdown_tol) {
+                // handle breakdown/restart
+                break;
+            } else {
+                edges.w_stab.value = (edges.e_norm.value / edges.new_values.value);
+            }
 
             auto w_saved = edges.w_stab.value;
 
+            /** breakdown: omega_k too small */
+            if (sycl::fabs(w_saved) <= breakdown_tol) {
+                logger::raw_ln("BiCGSTAB breakdown: omega = ", w_saved);
+                break;
+                // handle breakdown/restart
+            }
+
             /** compute new-phi*/
+            edges.alpha.value = alp_saved;
             node_new_phi.evaluate();
 
             /** compute new-residual*/
@@ -165,6 +209,7 @@ namespace shammodels::basegodunov::modules {
 
             /** compute <r_{k+1}, r_{k+1}> and assign its value to edges.e_norm.value*/
             node_ddot_rj_rj.evaluate();
+
             if (shamcomm::world_rank() == 0) {
                 logger::raw_ln("k= \t ", k, "<r_k+,r_k+> \t ", edges.e_norm.value, "\n");
             }
@@ -181,25 +226,57 @@ namespace shammodels::basegodunov::modules {
             node_had_rjnew_rp0.evaluate();
             /**compute <r_{k+1}, r'{0}> and assign its value to edges.new_values.value */
             node_ddot_rjnew_rp0.evaluate();
-            /**compute beta_{k} = (alpha_{k} / w_{k}) x (<r_{k+1}, r'{0}> / <r_{k}, r'{0}>) */
-            edges.beta.value
-                = (alp_saved / w_saved) * (edges.new_values.value / edges.old_values.value);
 
-            /** compute p_{k+1} = r_{k+1} + \beta_{k}(p_{k} - w_{k} Ap_{k}) */
-            edges.e_norm.value = 1;
-            edges.alpha.value  = (-w_saved) * (edges.beta.value);
-            node_new_p_vec.evaluate();
+            // if (shamcomm::world_rank() == 0) {
+            //     logger::raw_ln("<r_{k+1},r'_0> \t ", edges.new_values.value, "\n");
+            // }
 
-            /** perform lucky breakdown test for restarting */
-            if ((edges.new_values.value * edges.new_values.value) < (tol_happy_bk * tol_happy_bk)) {
-                /** set r'_{0} = r_{k+1} and p_{k+1} = r_{k+1}*/
-                if (shamcomm::world_rank() == 0) {
-                    logger::raw_ln("Lucky Break \t =======> \t restarting \n");
-                }
+            const auto rho_new = edges.new_values.value;
 
+            logger::raw_ln(
+                "restart diagnostic: ",
+                "rho_new = ",
+                rho_new,
+                " rr = ",
+                edges.e_norm.value,
+                " rstar_rstar = ",
+                edges.shadow_res_norm.value,
+                " threshold = ",
+                (tol_happy_bk * tol_happy_bk) * edges.e_norm.value * edges.shadow_res_norm.value,
+                "\t\n\n"
+                // " rho2 = ", rho_new * rho_new
+            );
+
+            if ((rho_new * rho_new) < (tol_happy_bk * tol_happy_bk) * (edges.e_norm.value)
+                                          * edges.shadow_res_norm.value) {
+
+                // /** Restart BiCGSTAB when the shadow-residual inner product becomes too small */
+                // r'_0 <- r_{k+1}
+                // p_{k+1} <- r_{k+1}
                 node_overwrite_rp0.evaluate();
                 node_overwrite_p.evaluate();
+
+                /** recompute <r'_0,r'_0>*/
+                node_ddot_rstarj_rstarj.evaluate();
+
+            } else {
+
+                // // /**compute beta_{k} = (alpha_{k} / w_{k}) x (<r_{k+1}, r'{0}> / <r_{k},
+                // r'{0}>) */
+                edges.beta.value = (alp_saved / w_saved) * (rho_new / edges.old_values.value);
+
+                /** p_{k+1}
+                 *   = r_{k+1}
+                 *   + beta_k (p_k - omega_k Ap_k)
+                 */
+                edges.e_norm.value = 1;
+                edges.alpha.value  = -w_saved * edges.beta.value;
+
+                node_new_p_vec.evaluate();
             }
+
+            // increment iteration
+            k = k + 1;
         }
     }
 

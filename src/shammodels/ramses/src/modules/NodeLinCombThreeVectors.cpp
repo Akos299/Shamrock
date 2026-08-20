@@ -47,17 +47,18 @@ namespace {
                 [alpha_0, alpha_1, alpha_2](
                     u32 i, const T *__restrict x, const T *__restrict y, T *__restrict z) {
                     /** Needed to be removed */
-                    auto zi = sycl::isnan(z[i]) ? 0.0 : z[i];
-                    /** Needed to be removed */
+                    // logger::raw_ln("alpha_0 = \t ", alpha_0 , "\t alpha_1 = \t ", alpha_1, "\t
+                    // alpha_2 \t = ", alpha_2  ,"\t x = \t", x[i], "\t y = \t", y[i], "\t z =  \t",
+                    // z[i], "\t\n\n" );
 
-                    z[i] = alpha_0 * zi + alpha_1 * x[i] + alpha_2 * y[i];
+                    z[i] = alpha_0 * (sycl::isnan(z[i]) ? 0.0 : z[i]) + alpha_1 * x[i]
+                           + alpha_2 * y[i];
 
-
-		    /*
+                    // /*
 
                     if (sycl::isnan(z[i]) || sycl::isnan(x[i]) || sycl::isnan(y[i])) {
                         logger::raw_ln(
-                            "nan in LinComb3Vec @ \t",
+                            "AFTER nan in LinComb3Vec @ \t",
                             i,
                             "\t {1st} x \t",
                             x[i],
@@ -68,7 +69,7 @@ namespace {
                             "\n");
                     }
 
-		    */
+                    // */
                 });
         }
     };

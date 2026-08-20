@@ -78,10 +78,10 @@ AMP = 10.0
 L = 1.0
 X0, Y0, Z0 = 0.5 * L, 0.5 * L, 0.5 * L
 SIGMA = 0.05
-BASES = [8]
-# 16, 32]
+BASES = [8, 16, 32]
 CG_TOL = 1e-12
-CG_MAXITER = 20000
+CG_MAXITER = 200000
+# 20000
 n_bound_lenth = 3
 sz = 2
 
@@ -311,13 +311,17 @@ def run_simulation(base):
     # CG gravity
     # --------------------------------------------------------
 
-    cfg.set_gravity_mode_cg()
+    # cfg.set_gravity_mode_cg()
+
+    cfg.set_gravity_mode_bicgstab()
 
     cfg.set_self_gravity_G_values(True, G)
 
     cfg.set_self_gravity_Niter_max(CG_MAXITER)
 
     cfg.set_self_gravity_tol(CG_TOL)
+
+    # cfg.set_self_gravity_happy_breakdown_tol(1e-6)
 
     cfg.set_coupling_gravity_mode_ramses_like()
 
