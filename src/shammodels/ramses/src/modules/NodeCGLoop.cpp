@@ -38,7 +38,7 @@ namespace shammodels::basegodunov::modules {
             edges.spans_rho.check_sizes(edges.sizes.indexes);
             edges.spans_phi_res.ensure_sizes(edges.sizes.indexes);
             edges.spans_phi_p.ensure_sizes(edges.sizes.indexes);
-            edges.spans_phi_rhs.ensure_sizes(edges.sizes.indexes);
+            edges.spans_rhs.ensure_sizes(edges.sizes.indexes);
             edges.spans_phi_Ap.ensure_sizes(edges.sizes.indexes);
             edges.spans_phi_hadamard_prod.ensure_sizes(edges.sizes.indexes);
             edges.spans_rz_hadamard_prod.ensure_sizes(edges.sizes.indexes);
@@ -53,9 +53,24 @@ namespace shammodels::basegodunov::modules {
             /* compute norm of rhs <b_rhs,b_rsh>*/
             rhs_node.evaluate();
 
+            /* compute Hadamard product r0 X z0 */
+            rz_hadamard_prod_node.evaluate();
+
+            /* compute the sum reduction of the previous Hadamard product and assigned the value to
+             * rz_old_values.value */
+            rz_reduction_node.evaluate();
+
             u32 k = 0;
             if (shamcomm::world_rank() == 0) {
-                logger::raw_ln("k = \t", k, "\t res = \t ", edges.old_values.value, "\t\n\n");
+                logger::raw_ln(
+                    "k = \t",
+                    k,
+                    "\t res = \t ",
+                    edges.old_values.value,
+                    "\t",
+                    "\t res_pcg = \t ",
+                    edges.rz_old_values.value,
+                    "\t\n\n");
                 r_0 = edges.old_values.value;
                 logger::raw_ln("rhs value = \t", edges.rhs_norm_values.value, "\t\n\n");
             }
@@ -88,9 +103,11 @@ namespace shammodels::basegodunov::modules {
                  * edges.e_norm.value */
                 a_norm_node.evaluate();
 
-                /** compute \alpha_{k} = \frac{ <r_{k},r_{k}> }{ <p_{k},Ap_{k}> }*/
+                // /** compute \alpha_{k} = \frac{ <r_{k},r_{k}> }{ <p_{k},Ap_{k}> }*/
+                // edges.alpha.value = edges.old_values.value / edges.e_norm.value;
 
-                edges.alpha.value = edges.old_values.value / edges.e_norm.value;
+                /** compute \alpha_{k} = \frac{ <r_{k},z_{k}> }{ <p_{k},Ap_{k}> }*/
+                edges.alpha.value = edges.rz_old_values.value / edges.e_norm.value;
 
                 /** compute new phi : \phi_{k+1} = \phi_{k} + \alpha_{k} p_{k}  */
                 new_potential_node.evaluate();
@@ -99,23 +116,60 @@ namespace shammodels::basegodunov::modules {
                 edges.alpha.value = -edges.alpha.value;
                 new_residual_node.evaluate();
 
+                /** solve Mz_{k+1} =  r_{k+1} */
+                res_precond_node.evaluate();
+
+                /**compute Hadamard product z_{k+1} X r_{k+1}*/
+                rz_hadamard_prod_node.evaluate();
+
+                /* compute the sum reduction of the previous Hadamard product and assigned the value
+                 * to rz_new_values.value */
+                rz_new_reduction_node.evaluate();
+
                 /** compute <r_{k+1},r_{k+1}> and assign its value to edges.new_values.value */
                 res_ddot_new_node.evaluate();
 
-                /** compute \beta_{k} = \frac{<r_{k+1},r_{k+1}>}{<r_{k},r_{k}>}*/
-                //-------------------
-                edges.beta.value = edges.new_values.value / edges.old_values.value;
+                // /** compute \beta_{k} = \frac{<r_{k+1},r_{k+1}>}{<r_{k},r_{k}>}*/
+                // edges.beta.value = edges.new_values.value / edges.old_values.value;
+
+                /** compute \beta_{k} = \frac{<r_{k+1},z_{k+1}>}{<r_{k},z_{k}>}*/
+                edges.beta.value = edges.rz_new_values.value / edges.rz_old_values.value;
 
                 /** set <r_{k},r_{k}> = <r_{k+1},r_{k+1}>*/
                 edges.old_values.value = edges.new_values.value;
 
+                /** set <z_{k},r_{k}> = <z_{k+1},r_{k+1}>*/
+                edges.rz_old_values = edges.rz_new_values;
+
                 if (shamcomm::world_rank() == 0) {
+                    // logger::raw_ln(
+                    //     " k = \t ", k, " \t res  = \t ", edges.old_values.value, "\t", "\t
+                    //     res_pcg = \t " ,edges.rz_old_values.value, "\t\n\n");
+
                     logger::raw_ln(
-                        " k = \t ", k, " \t res  = \t ", (edges.old_values.value), "\t\n\n");
+                        " k = \t ",
+                        k,
+                        "\t rr = \t ",
+                        edges.old_values.value,
+                        "\t",
+                        "\t  rz = \t ",
+                        edges.rz_old_values.value,
+                        "\t",
+                        " \t rz/rr = \t",
+                        edges.rz_old_values.value / edges.old_values.value,
+                        "\t rr/rhs = \t",
+                        edges.old_values.value / edges.rhs_norm_values.value,
+                        "\t\n\n");
+
+                    // logger::raw_ln(" k = \t ", k, "\t rr/rhs = \t", edges.old_values.value /
+                    // edges.rhs_norm_values.value, "\t\n\n");
                 }
 
-                /** compute p_{k+1} = r_{k+1} + \beta_{k} p_{k} */
-                new_p_node.evaluate();
+                // /** compute p_{k+1} = r_{k+1} + \beta_{k} p_{k} */
+                // new_p_node.evaluate();
+
+                /** compute p_{k+1} = z_{k+1} + \beta_{k} p_{k} */
+                new_p_node_precond.evaluate();
 
                 if ((edges.old_values.value / edges.rhs_norm_values.value) < tol * tol) {
                     if (shamcomm::world_rank() == 0) {

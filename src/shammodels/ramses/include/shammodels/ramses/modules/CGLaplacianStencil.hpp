@@ -20,6 +20,7 @@
 #include "shambackends/vec.hpp"
 #include "shamcomm/logs.hpp"
 #include "shammodels/common/amr/NeighGraph.hpp"
+#include "shammodels/ramses/SolverConfig.hpp"
 #include <shambackends/sycl.hpp>
 
 using AMRGraphLinkiterator = shammodels::basegodunov::modules::AMRGraph::ro_access;
@@ -96,5 +97,154 @@ namespace shammodels::basegodunov {
 
         return -result; // the minus sign is for the positivity. We solve -\Delta \phi =
                         // -4*\pi*G*(\rho -\bar{rho})
+    }
+
+    /**
+     * @brief Get the discretized laplacian
+     *
+     * @tparam T
+     * @tparam Tvec
+     * @tparam Jacobi_pred
+     * @tparam ACCField
+     * @param cell_global_id
+     * @param delta_cell
+     * @param graph_iter_xp
+     * @param graph_iter_xm
+     * @param graph_iter_yp
+     * @param graph_iter_ym
+     * @param graph_iter_zp
+     * @param graph_iter_zm
+     * @param field_access
+     * @return T
+     */
+    template<class T, class Tvec, class Jacobi_pred, class ACCField>
+    inline T laplacian_7pt_2(
+        const f64 *cell_sizes,
+        const u32 block_size,
+        const u32 cell_global_id,
+        const AMRGraphLinkiterator &graph_iter_xp,
+        const AMRGraphLinkiterator &graph_iter_xm,
+        const AMRGraphLinkiterator &graph_iter_yp,
+        const AMRGraphLinkiterator &graph_iter_ym,
+        const AMRGraphLinkiterator &graph_iter_zp,
+        const AMRGraphLinkiterator &graph_iter_zm,
+        Jacobi_pred &jacobi_weight,
+        ACCField &&field_access) {
+        auto cur_cell_block_id = cell_global_id / block_size;
+
+        if constexpr (std::is_same_v<Jacobi_pred, JacobiWeight<T>>) {
+            jacobi_weight.value = shambase::VectorProperties<T>::get_zero();
+        }
+
+        auto get_gradiant_dir_by_flux_formulation = [&](auto &graph_links, Direction dir) -> T {
+            T acc                 = shambase::VectorProperties<T>::get_zero();
+            auto cell_center_dist = cell_sizes[cur_cell_block_id];
+
+            auto fac = 1.;
+            u32 cnt  = graph_links.for_each_object_link_cnt(cell_global_id, [&](u32 id_b) {
+                auto neigh_block_id = id_b / block_size;
+
+                int sign = 1 - 2 * (dir % 2);
+                acc += sign * (field_access(id_b) - field_access(cell_global_id));
+
+                if (cell_sizes[neigh_block_id] > cell_sizes[cur_cell_block_id]) {
+                    fac = (3. / 2.);
+                }
+                // This logic suppose that the last (4-th) cell at interface have same size with the
+                // other three cells. This is also consitent with 2:1 refinement.
+                // TODO: extended to anisotropic mesh
+                if (cell_sizes[neigh_block_id] < cell_sizes[cur_cell_block_id]) {
+                    fac = (3. / 4.);
+                }
+            });
+
+            if constexpr (std::is_same_v<Jacobi_pred, JacobiWeight<T>>) {
+                jacobi_weight.value += 1.0 / (cell_center_dist * fac);
+            }
+
+            return (cnt > 0) ? acc / (cell_center_dist * fac * cnt)
+                             : shambase::VectorProperties<T>::get_zero();
+        };
+
+        T flux_xp = get_gradiant_dir_by_flux_formulation(graph_iter_xp, Direction::xp);
+        T flux_xm = get_gradiant_dir_by_flux_formulation(graph_iter_xm, Direction::xm);
+        T flux_yp = get_gradiant_dir_by_flux_formulation(graph_iter_yp, Direction::yp);
+        T flux_ym = get_gradiant_dir_by_flux_formulation(graph_iter_ym, Direction::ym);
+        T flux_zp = get_gradiant_dir_by_flux_formulation(graph_iter_zp, Direction::zp);
+        T flux_zm = get_gradiant_dir_by_flux_formulation(graph_iter_zm, Direction::zm);
+
+        auto S = cell_sizes[cur_cell_block_id] * cell_sizes[cur_cell_block_id];
+
+        //
+        auto result = S * ((flux_xp + flux_yp + flux_zp) - (flux_xm + flux_ym + flux_zm));
+
+        if constexpr (std::is_same_v<Jacobi_pred, JacobiWeight<T>>) {
+            jacobi_weight.value *= S;
+        }
+
+        return -result; // the minus sign is for the positivity. We solve -\Delta \phi =
+                        // -4*\pi*G*(\rho -\bar{rho})
+    }
+
+    /**
+     * @brief Get the Jacobian precond weight
+     *
+     * @tparam T
+     * @tparam Tvec
+     * @param cell_global_id
+     * @param delta_cell
+     * @param graph_iter_xp
+     * @param graph_iter_xm
+     * @param graph_iter_yp
+     * @param graph_iter_ym
+     * @param graph_iter_zp
+     * @param graph_iter_zm
+     * @return T
+     */
+    template<class T, class Tvec>
+    inline T Jacobi_weight(
+        const f64 *cell_sizes,
+        const u32 block_size,
+        const u32 cell_global_id,
+        const AMRGraphLinkiterator &graph_iter_xp,
+        const AMRGraphLinkiterator &graph_iter_xm,
+        const AMRGraphLinkiterator &graph_iter_yp,
+        const AMRGraphLinkiterator &graph_iter_ym,
+        const AMRGraphLinkiterator &graph_iter_zp,
+        const AMRGraphLinkiterator &graph_iter_zm) {
+        auto cur_cell_block_id = cell_global_id / block_size;
+
+        auto res = shambase::VectorProperties<T>::get_zero();
+
+        auto get_face_distance = [&](auto &graph_links, Direction dir) -> T {
+            auto cell_center_dist = cell_sizes[cur_cell_block_id];
+
+            auto fac = 1.;
+
+            u32 cnt = graph_links.for_each_object_link_cnt(cell_global_id, [&](u32 id_b) {
+                auto neigh_block_id = id_b / block_size;
+
+                if (cell_sizes[neigh_block_id] > cell_sizes[cur_cell_block_id]) {
+                    fac = 3. / 2.;
+                }
+
+                if (cell_sizes[neigh_block_id] < cell_sizes[cur_cell_block_id]) {
+                    fac = 3. / 4.;
+                }
+            });
+
+            return (cnt > 0) ? 1.0 / (cell_center_dist * fac)
+                             : shambase::VectorProperties<T>::get_zero();
+        };
+
+        res += get_face_distance(graph_iter_xp, Direction::xp);
+        res += get_face_distance(graph_iter_xm, Direction::xm);
+        res += get_face_distance(graph_iter_yp, Direction::yp);
+        res += get_face_distance(graph_iter_ym, Direction::ym);
+        res += get_face_distance(graph_iter_zp, Direction::zp);
+        res += get_face_distance(graph_iter_zm, Direction::zm);
+
+        auto S = cell_sizes[cur_cell_block_id] * cell_sizes[cur_cell_block_id];
+        return S * res;
     }
 } // namespace shammodels::basegodunov

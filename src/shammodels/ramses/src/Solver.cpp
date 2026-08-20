@@ -46,6 +46,7 @@
 #include "shammodels/ramses/modules/NodeComputeFlux.hpp"
 #include "shammodels/ramses/modules/NodeGetNextConsVar.hpp"
 #include "shammodels/ramses/modules/NodeNextRho.hpp"
+#include "shammodels/ramses/modules/NodePCGLoop.hpp"
 #include "shammodels/ramses/modules/NodeSelfGravityAcceleration.hpp"
 #include "shammodels/ramses/modules/SlopeLimitedGradient.hpp"
 #include "shammodels/ramses/modules/SumFluxDust.hpp"

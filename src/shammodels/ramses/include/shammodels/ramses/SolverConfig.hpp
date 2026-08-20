@@ -79,6 +79,13 @@ namespace shammodels::basegodunov {
 
     enum CouplinGravitygMode { NoCoupling = 0, RAMSES_LIKE = 1 };
 
+    struct NoJacobiWeight {};
+
+    template<class T>
+    struct JacobiWeight {
+        T value;
+    };
+
     template<class Tvec>
     struct GravityConfig {
         using Tscal                               = shambase::VecComponent<Tvec>;

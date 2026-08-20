@@ -19,7 +19,6 @@
 
 #include "shambase/aliases_int.hpp"
 #include "shambackends/vec.hpp"
-#include "shammodels/ramses/SolverConfig.hpp"
 #include "shammodels/ramses/solvegraph/OrientedAMRGraphEdge.hpp"
 #include "shamrock/solvergraph/IFieldSpan.hpp"
 #include "shamrock/solvergraph/INode.hpp"
@@ -37,8 +36,9 @@
     X_RO(shamrock::solvergraph::ScalarEdge<Tscal>, mean_rho)                                       \
     /* outputs*/                                                                                   \
     X_RW(shamrock::solvergraph::IFieldSpan<Tscal>, spans_phi_res)                                  \
-    X_RW(shamrock::solvergraph::IFieldSpan<Tscal>, spans_phi_pres)                                 \
-    X_RW(shamrock::solvergraph::IFieldSpan<Tscal>, spans_phi_p)
+    X_RW(shamrock::solvergraph::IFieldSpan<Tscal>, spans_phi_z)                                    \
+    X_RW(shamrock::solvergraph::IFieldSpan<Tscal>, spans_phi_p)                                    \
+    X_RW(shamrock::solvergraph::IFieldSpan<Tscal>, spans_rhs)
 
 namespace shammodels::basegodunov::modules {
 

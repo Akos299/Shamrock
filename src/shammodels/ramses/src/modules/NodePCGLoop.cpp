@@ -26,7 +26,7 @@
 
 namespace shammodels::basegodunov::modules {
     template<class Tvec, class TgridVec>
-    void NodeCGLoop<Tvec, TgridVec>::_impl_evaluate_internal() {
+    void NodePCGLoop<Tvec, TgridVec>::_impl_evaluate_internal() {
         StackEntry stack_loc{};
         auto edges = get_edges();
 

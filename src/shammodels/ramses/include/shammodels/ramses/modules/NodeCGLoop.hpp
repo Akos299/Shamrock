@@ -91,6 +91,9 @@ namespace shammodels::basegodunov::modules {
         modules::CGInit<Tvec, TgridVec> cg_init_node{block_size, fourPiG};
         // ddot node old
         modules::ResidualDot<Tscal> res_ddot_node{block_size};
+
+        // hadamard product for
+
         // SpMV node
         modules::NodeSpMVPoisson3D<Tvec, TgridVec> spmv_node{block_size};
         // hadamardProd node
@@ -106,6 +109,9 @@ namespace shammodels::basegodunov::modules {
         // New-A-conjugate vector p node
         modules::NodeAYPX<Tscal> new_p_node{block_size};
 
+        // New-A-conjugate vector p node
+        modules::NodeAYPX<Tscal> new_p_node_precond{block_size};
+
         // rhs node
         modules::ResidualDot<Tscal> rhs_node{block_size};
 
@@ -118,7 +124,7 @@ namespace shammodels::basegodunov::modules {
         modules::NodeSumReduction<Tscal> rz_new_reduction_node{block_size};
 
         // preconditioned residual node
-        modules::NodePrecondRes<Tscal> res_precond_node{block_size};
+        modules::NodePrecondRes<Tvec, TgridVec> res_precond_node{block_size};
 
         //
         std::shared_ptr<shamrock::solvergraph::PatchDataFieldDDShared<Tscal>> p_ghosts
@@ -154,7 +160,7 @@ namespace shammodels::basegodunov::modules {
             shamrock::solvergraph::ScalarEdge<Tscal> &e_norm;
             shamrock::solvergraph::ScalarEdge<Tscal> &alpha;
             shamrock::solvergraph::ScalarEdge<Tscal> &beta;
-            shamrock::solvergraph::Field<Tscal> &spans_phi_rhs;
+            shamrock::solvergraph::Field<Tscal> &spans_rhs;
             shamrock::solvergraph::ScalarEdge<Tscal> &rhs_norm_values;
             shamrock::solvergraph::Field<Tscal> &spans_phi_z;
             shamrock::solvergraph::ScalarEdge<Tscal> &rz_old_values;
@@ -182,7 +188,7 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> e_norm,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> alpha,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> beta,
-            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_rhs,
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_rhs,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> rhs_norm_values,
             std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_z,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> rz_old_values,
@@ -199,24 +205,25 @@ namespace shammodels::basegodunov::modules {
                  idx_in_ghost,
                  rank_owner});
 
-            __internal_set_rw_edges(
-                {spans_phi,
-                 spans_phi_res,
-                 spans_phi_p,
-                 spans_phi_Ap,
-                 spans_phi_hadamard_prod,
-                 old_values,
-                 new_values,
-                 e_norm,
-                 alpha,
-                 beta,
-                 spans_phi_rhs,
-                 rhs_norm_values,
-                 spans_phi_z,
-                 rz_old_values,
-                 rz_new_values,
-                 spans_rz_hadamard_prod,
-                 nb_iter});
+            __internal_set_rw_edges({
+                spans_phi,
+                spans_phi_res,
+                spans_phi_p,
+                spans_phi_Ap,
+                spans_phi_hadamard_prod,
+                old_values,
+                new_values,
+                e_norm,
+                alpha,
+                beta,
+                spans_rhs,
+                rhs_norm_values,
+                spans_phi_z,
+                rz_old_values,
+                rz_new_values,
+                spans_rz_hadamard_prod,
+                nb_iter,
+            });
 
             // set cg_init_node edges
             cg_init_node.set_edges(
@@ -228,7 +235,7 @@ namespace shammodels::basegodunov::modules {
                 mean_rho,
                 spans_phi_res,
                 spans_phi_p,
-                spans_phi_rhs,
+                spans_rhs,
                 spans_phi_z);
 
             // set res_ddot_node edges
@@ -256,6 +263,9 @@ namespace shammodels::basegodunov::modules {
             // // set new_p_node edges
             new_p_node.set_edges(sizes, spans_phi_res, beta, spans_phi_p);
 
+            // // set new_p_node_precond edges
+            new_p_node_precond.set_edges(sizes, spans_phi_z, beta, spans_phi_p);
+
             // set node_gz edges  for p-vectors
             node_gz_p.set_edges(spans_phi_p, idx_in_ghost, p_ghosts);
 
@@ -265,7 +275,7 @@ namespace shammodels::basegodunov::modules {
             // replace ghosts for p-vectors
             node_replace_gz_p.set_edges(p_ghosts, spans_phi_p);
 
-            rhs_node.set_edges(sizes_no_gz, spans_phi_rhs, rhs_norm_values);
+            rhs_node.set_edges(sizes_no_gz, spans_rhs, rhs_norm_values);
 
             // set hadamard_prod_node edges
             rz_hadamard_prod_node.set_edges(
@@ -277,7 +287,8 @@ namespace shammodels::basegodunov::modules {
             rz_new_reduction_node.set_edges(sizes_no_gz, spans_rz_hadamard_prod, rz_new_values);
 
             //
-            res_precond_node.set_edges(sizes, spans_block_cell_sizes, spans_phi_res, spans_phi_z);
+            res_precond_node.set_edges(
+                sizes, cell_neigh_graph, spans_block_cell_sizes, spans_phi_res, spans_phi_z);
         }
 
         inline Edges get_edges() {
@@ -306,7 +317,7 @@ namespace shammodels::basegodunov::modules {
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(13),
                 get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(14),
                 get_rw_edge<shamrock::solvergraph::Field<Tscal>>(15),
-                get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(16),
+                get_rw_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(16)
 
                 //
             };

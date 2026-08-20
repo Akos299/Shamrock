@@ -78,7 +78,8 @@ AMP = 10.0
 L = 1.0
 X0, Y0, Z0 = 0.5 * L, 0.5 * L, 0.5 * L
 SIGMA = 0.05
-BASES = [8, 16, 32]
+BASES = [8]
+# 16, 32]
 CG_TOL = 1e-12
 CG_MAXITER = 20000
 n_bound_lenth = 3

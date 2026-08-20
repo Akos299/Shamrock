@@ -40,107 +40,123 @@ namespace {
 
         public:
         inline static void kernel(Edges &edges, u32 block_size, Tscal fourPiG) {
-            edges.cell_neigh_graph.graph.for_each(
-                [&](u64 id, const OrientedAMRGraph &oriented_cell_graph) {
-                    auto &cell_sizes_span = edges.spans_block_cell_sizes.get_spans().get(id);
-                    auto &phi_span        = edges.spans_phi.get_spans().get(id);
-                    auto &rho_span        = edges.spans_rho.get_spans().get(id);
-                    auto &mean_rho        = edges.mean_rho.value;
-                    auto &phi_res_span    = edges.spans_phi_res.get_spans().get(id);
-                    auto &phi_p_span      = edges.spans_phi_p.get_spans().get(id);
-                    auto &rhs_span        = edges.spans_rhs.get_spans().get(id);
-                    auto &phi_z_span      = edges.spans_phi_z.get_spans().get(id);
+            edges.cell_neigh_graph.graph.for_each([&](u64 id,
+                                                      const OrientedAMRGraph &oriented_cell_graph) {
+                auto &cell_sizes_span = edges.spans_block_cell_sizes.get_spans().get(id);
+                auto &phi_span        = edges.spans_phi.get_spans().get(id);
+                auto &rho_span        = edges.spans_rho.get_spans().get(id);
+                auto &mean_rho        = edges.mean_rho.value;
+                auto &phi_res_span    = edges.spans_phi_res.get_spans().get(id);
+                auto &phi_p_span      = edges.spans_phi_p.get_spans().get(id);
+                auto &rhs_span        = edges.spans_rhs.get_spans().get(id);
+                auto &phi_z_span      = edges.spans_phi_z.get_spans().get(id);
 
-                    AMRGraph &graph_neigh_xp
-                        = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::xp]);
-                    AMRGraph &graph_neigh_xm
-                        = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::xm]);
-                    AMRGraph &graph_neigh_yp
-                        = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::yp]);
-                    AMRGraph &graph_neigh_ym
-                        = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::ym]);
-                    AMRGraph &graph_neigh_zp
-                        = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::zp]);
-                    AMRGraph &graph_neigh_zm
-                        = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::zm]);
+                AMRGraph &graph_neigh_xp
+                    = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::xp]);
+                AMRGraph &graph_neigh_xm
+                    = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::xm]);
+                AMRGraph &graph_neigh_yp
+                    = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::yp]);
+                AMRGraph &graph_neigh_ym
+                    = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::ym]);
+                AMRGraph &graph_neigh_zp
+                    = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::zp]);
+                AMRGraph &graph_neigh_zm
+                    = shambase::get_check_ref(oriented_cell_graph.graph_links[Direction::zm]);
 
-                    sham::EventList depends_list;
+                sham::EventList depends_list;
 
-                    auto cell_sizes = cell_sizes_span.get_read_access(depends_list);
-                    auto phi        = phi_span.get_read_access(depends_list);
-                    auto rho        = rho_span.get_read_access(depends_list);
-                    auto phi_res    = phi_res_span.get_write_access(depends_list);
-                    auto phi_p      = phi_p_span.get_write_access(depends_list);
-                    auto rhs        = rhs_span.get_write_access(depends_list);
-                    auto phi_z      = phi_z_span.get_write_access(depends_list);
+                auto cell_sizes = cell_sizes_span.get_read_access(depends_list);
+                auto phi        = phi_span.get_read_access(depends_list);
+                auto rho        = rho_span.get_read_access(depends_list);
+                auto phi_res    = phi_res_span.get_write_access(depends_list);
+                auto phi_p      = phi_p_span.get_write_access(depends_list);
+                auto rhs        = rhs_span.get_write_access(depends_list);
+                auto phi_z      = phi_z_span.get_write_access(depends_list);
 
-                    auto graph_iter_xp = graph_neigh_xp.get_read_access(depends_list);
-                    auto graph_iter_xm = graph_neigh_xm.get_read_access(depends_list);
-                    auto graph_iter_yp = graph_neigh_yp.get_read_access(depends_list);
-                    auto graph_iter_ym = graph_neigh_ym.get_read_access(depends_list);
-                    auto graph_iter_zp = graph_neigh_zp.get_read_access(depends_list);
-                    auto graph_iter_zm = graph_neigh_zm.get_read_access(depends_list);
+                auto graph_iter_xp = graph_neigh_xp.get_read_access(depends_list);
+                auto graph_iter_xm = graph_neigh_xm.get_read_access(depends_list);
+                auto graph_iter_yp = graph_neigh_yp.get_read_access(depends_list);
+                auto graph_iter_ym = graph_neigh_ym.get_read_access(depends_list);
+                auto graph_iter_zp = graph_neigh_zp.get_read_access(depends_list);
+                auto graph_iter_zm = graph_neigh_zm.get_read_access(depends_list);
 
-                    sham::DeviceQueue &q = shamsys::instance::get_compute_scheduler().get_queue();
-                    auto e               = q.submit(depends_list, [&](sycl::handler &cgh) {
-                        u32 cell_count = (edges.sizes.indexes.get(id)) * block_size;
+                sham::DeviceQueue &q = shamsys::instance::get_compute_scheduler().get_queue();
+                auto e               = q.submit(depends_list, [&](sycl::handler &cgh) {
+                    u32 cell_count = (edges.sizes.indexes.get(id)) * block_size;
 
-                        shambase::parallel_for(cgh, cell_count, "init step for cg", [=](u64 gid) {
-                            const u32 cell_global_id = (u32) gid;
-                            const u32 block_id       = cell_global_id / block_size;
-                            const u32 cell_loc_id    = cell_global_id % block_size;
+                    shambase::parallel_for(cgh, cell_count, "init step for cg", [=](u64 gid) {
+                        const u32 cell_global_id = (u32) gid;
+                        const u32 block_id       = cell_global_id / block_size;
+                        const u32 cell_loc_id    = cell_global_id % block_size;
 
-                            Tscal delta_cell = cell_sizes[block_id];
-                            auto Aphi        = shammodels::basegodunov::laplacian_7pt<Tscal, Tvec>(
-                                cell_sizes,
-                                block_size,
-                                cell_global_id,
-                                graph_iter_xp,
-                                graph_iter_xm,
-                                graph_iter_yp,
-                                graph_iter_ym,
-                                graph_iter_zp,
-                                graph_iter_zm,
-                                [=](u32 id) {
-                                    return sycl::isnan(phi[id]) ? 0.0 : phi[id];
-                                });
+                        Tscal delta_cell = cell_sizes[block_id];
 
-                            // if (sycl::isnan(phi[cell_global_id]))
-                            // {
-                            // // logger::raw_ln("rho @ \t ",cell_global_id, "\t = \t ",
-                            // rho[cell_global_id], "\n\n");
-                            //  logger::raw_ln("phi @ \t ",cell_global_id, "\t = \t ",
-                            //  phi[cell_global_id], "\n\n");
-                            // }
+                        // auto Aphi        = shammodels::basegodunov::laplacian_7pt<Tscal, Tvec>(
+                        //     cell_sizes,
+                        //     block_size,
+                        //     cell_global_id,
+                        //     graph_iter_xp,
+                        //     graph_iter_xm,
+                        //     graph_iter_yp,
+                        //     graph_iter_ym,
+                        //     graph_iter_zp,
+                        //     graph_iter_zm,
+                        //     [=](u32 id) {
+                        //         return sycl::isnan(phi[id]) ? 0.0 : phi[id];
+                        //     });
 
-                            auto dV    = delta_cell * delta_cell * delta_cell;
-                            auto b_rhs = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
+                        auto jac_weight = shammodels::basegodunov::JacobiWeight<Tscal>{Tscal(1.0)};
 
-                            auto res                = b_rhs - Aphi;
-                            phi_res[cell_global_id] = res;
-                            rhs[cell_global_id]     = b_rhs;
-                            // z = dV * (6 /dS ) * res
-                            phi_z[cell_global_id] = res / (6. * delta_cell);
-                            // phi_z[cell_global_id] = (res * delta_cell * delta_cell) / (6.);
-                            phi_p[cell_global_id] = res;
-                        });
+                        auto Aphi = shammodels::basegodunov::laplacian_7pt_2<Tscal, Tvec>(
+                            cell_sizes,
+                            block_size,
+                            cell_global_id,
+                            graph_iter_xp,
+                            graph_iter_xm,
+                            graph_iter_yp,
+                            graph_iter_ym,
+                            graph_iter_zp,
+                            graph_iter_zm,
+                            // shammodels::basegodunov::NoJacobiWeight{},
+                            jac_weight,
+                            [=](u32 id) {
+                                return sycl::isnan(phi[id]) ? 0.0 : phi[id];
+                            });
+
+                        auto dV    = delta_cell * delta_cell * delta_cell;
+                        auto b_rhs = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
+
+                        auto res                = b_rhs - Aphi;
+                        phi_res[cell_global_id] = res;
+                        rhs[cell_global_id]     = b_rhs;
+
+                        phi_z[cell_global_id] = res / jac_weight.value;
+                        //  / (6.0 * delta_cell);
+                        phi_p[cell_global_id] = res / jac_weight.value;
+                        //   / (6.0 * delta_cell);
+
+                        // if (jac_weight.value != 6.0 * delta_cell)
+                        //     logger::raw_ln("\n computed: \t ",jac_weight.value, "\t ", "expected:
+                        //     \t", 6.0 * delta_cell);
                     });
-
-                    cell_sizes_span.complete_event_state(e);
-                    phi_span.complete_event_state(e);
-                    rho_span.complete_event_state(e);
-                    phi_res_span.complete_event_state(e);
-                    phi_p_span.complete_event_state(e);
-                    rhs_span.complete_event_state(e);
-                    phi_z_span.complete_event_state(e);
-
-                    graph_neigh_xp.complete_event_state(e);
-                    graph_neigh_xm.complete_event_state(e);
-                    graph_neigh_yp.complete_event_state(e);
-                    graph_neigh_ym.complete_event_state(e);
-                    graph_neigh_zp.complete_event_state(e);
-                    graph_neigh_zm.complete_event_state(e);
                 });
+
+                cell_sizes_span.complete_event_state(e);
+                phi_span.complete_event_state(e);
+                rho_span.complete_event_state(e);
+                phi_res_span.complete_event_state(e);
+                phi_p_span.complete_event_state(e);
+                rhs_span.complete_event_state(e);
+                phi_z_span.complete_event_state(e);
+
+                graph_neigh_xp.complete_event_state(e);
+                graph_neigh_xm.complete_event_state(e);
+                graph_neigh_yp.complete_event_state(e);
+                graph_neigh_ym.complete_event_state(e);
+                graph_neigh_zp.complete_event_state(e);
+                graph_neigh_zm.complete_event_state(e);
+            });
         }
     };
 } // namespace
