@@ -1210,35 +1210,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
             start_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_bicgstab_old)>(std::move(node_bicgstab_old)));
         }
-        {
-            /***********************************/
-            // Extract ghosts for Field
-            shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_phi_old{};
-            // set node_gz edges  for phi-vectors
-            node_gz_phi_old.set_edges(storage.refs_phi, storage.idx_in_ghost, storage.phi_ghosts);
-            start_self_gravity_sequences.push_back(
-                std::make_shared<decltype(node_gz_phi_old)>(std::move(node_gz_phi_old)));
-        }
-        {
-            // Exchange ghosts for field
-            shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_phi_old{};
-
-            // set node_exch_gz edges for phi-vectors
-            node_exch_gz_phi_old.set_edges(storage.patch_rank_owner, storage.phi_ghosts);
-            start_self_gravity_sequences.push_back(
-                std::make_shared<decltype(node_exch_gz_phi_old)>(std::move(node_exch_gz_phi_old)));
-        }
-
-        {
-            // Replace ghosts for field
-            shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_phi_old{};
-
-            // replace ghosts for phi-vectors
-            node_replace_gz_phi_old.set_edges(storage.phi_ghosts, storage.refs_phi);
-            start_self_gravity_sequences.push_back(
-                std::make_shared<decltype(node_replace_gz_phi_old)>(
-                    std::move(node_replace_gz_phi_old)));
-        }
 
         /** Compute old gravitational acceleration **/
         {
@@ -1874,34 +1845,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
 
             end_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_bicgstab_next)>(std::move(node_bicgstab_next)));
-        }
-        {
-            /***********************************/
-            // Extract ghosts for Field
-            shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_phi{};
-            // set node_gz edges  for phi-vectors
-            node_gz_phi.set_edges(storage.refs_phi_new, storage.idx_in_ghost, storage.phi_ghosts);
-            end_self_gravity_sequences.push_back(
-                std::make_shared<decltype(node_gz_phi)>(std::move(node_gz_phi)));
-        }
-        {
-            // Exchange ghosts for field
-            shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_phi{};
-
-            // set node_exch_gz edges for phi-vectors
-            node_exch_gz_phi.set_edges(storage.patch_rank_owner, storage.phi_ghosts);
-            end_self_gravity_sequences.push_back(
-                std::make_shared<decltype(node_exch_gz_phi)>(std::move(node_exch_gz_phi)));
-        }
-
-        {
-            // Replace ghosts for field
-            shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_phi{};
-
-            // replace ghosts for phi-vectors
-            node_replace_gz_phi.set_edges(storage.phi_ghosts, storage.refs_phi_new);
-            end_self_gravity_sequences.push_back(
-                std::make_shared<decltype(node_replace_gz_phi)>(std::move(node_replace_gz_phi)));
         }
 
         /** Compute new gravitational acceleration **/

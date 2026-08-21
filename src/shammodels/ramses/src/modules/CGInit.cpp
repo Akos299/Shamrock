@@ -190,7 +190,3 @@ namespace shammodels::basegodunov::modules {
 } // namespace shammodels::basegodunov::modules
 
 template class shammodels::basegodunov::modules::CGInit<f64_3, i64_3>;
-
-../ examples / TO_MIGRATE / ramses / amr_kh_leuco.py../ examples / TO_MIGRATE / ramses
-    / visualize_periodicity.py../ src / shammodels / ramses / include / shammodels / ramses / config
-    / enum_AMRInterpMode.hpp

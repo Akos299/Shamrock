@@ -125,33 +125,33 @@ namespace shammodels::basegodunov::modules {
                 "p_ghots", "p_ghots");
 
         /***********************************/
-        // Extract ghosts for Field
+        // Extract ghosts for p-vector
         shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_p{};
 
-        // Exchange ghosts for field
+        // Exchange ghosts for p-vector
         shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_p{};
 
-        // Replace ghosts for field
+        // Replace ghosts for p-vector
         shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_p{};
 
         /***********************************/
-        // Extract ghosts for Field
+        // Extract ghosts for s-vector
         shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_s{};
 
-        // Exchange ghosts for field
+        // Exchange ghosts for s-vector
         shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_s{};
 
-        // Replace ghosts for field
+        // Replace ghosts for s-vector
         shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_s{};
 
         /***********************************/
-        // Extract ghosts for Field
+        // Extract ghosts for phi-vector
         shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_phi{};
 
-        // Exchange ghosts for field
+        // Exchange ghosts for phi-vector
         shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_phi{};
 
-        // Replace ghosts for field
+        // Replace ghosts for phi-vector
         shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_phi{};
 
         struct Edges {
@@ -316,19 +316,15 @@ namespace shammodels::basegodunov::modules {
 
             // set node_gz edges  for p-vector
             node_gz_p.set_edges(spans_phi_p, idx_in_ghost, p_ghosts);
-
             // set node_exch_gz edges for p-vector
             node_exch_gz_p.set_edges(rank_owner, p_ghosts);
-
             // replace ghosts for p-vector
             node_replace_gz_p.set_edges(p_ghosts, spans_phi_p);
 
             // set node_gz edges  for s-vector
             node_gz_s.set_edges(spans_phi_s, idx_in_ghost, p_ghosts);
-
             // set node_exch_gz edges for s-vector
             node_exch_gz_s.set_edges(rank_owner, p_ghosts);
-
             // replace ghosts for s-vector
             node_replace_gz_s.set_edges(p_ghosts, spans_phi_s);
 
@@ -339,7 +335,7 @@ namespace shammodels::basegodunov::modules {
             // replace ghosts for phi
             node_replace_gz_phi.set_edges(p_ghosts, spans_phi);
 
-            //
+            // set node for shadow residual norm
             node_ddot_rstarj_rstarj.set_edges(sizes_no_gz, spans_phi_res_bis, shadow_res_norm);
         }
 

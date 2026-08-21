@@ -93,7 +93,6 @@ namespace {
                                 graph_iter_zm);
 
                             phi_z[cell_global_id] = phi_res[cell_global_id] / jac_weight;
-                            // / (6.0 * delta_cell);
 
                             // if (jac_weight != 6.0 * delta_cell)
                             // logger::raw_ln("\n computed: \t ",jac_weight, "\t ", "expected:

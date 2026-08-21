@@ -92,6 +92,9 @@ namespace shammodels::basegodunov::modules {
         // ddot node old
         modules::ResidualDot<Tscal> res_ddot_node{block_size};
 
+        //   compute norm of rhs <b_rhs,b_rsh>
+        modules::ResidualDot<Tscal> rhs_node{block_size};
+
         // hadamard product for
 
         // SpMV node
@@ -112,9 +115,6 @@ namespace shammodels::basegodunov::modules {
         // New-A-conjugate vector p node
         modules::NodeAYPX<Tscal> new_p_node_precond{block_size};
 
-        // rhs node
-        modules::ResidualDot<Tscal> rhs_node{block_size};
-
         // hadamardProd node
         modules::NodeHadamardProd<Tscal> rz_hadamard_prod_node{block_size};
         // rz reduction node
@@ -132,14 +132,23 @@ namespace shammodels::basegodunov::modules {
                 "p_ghots", "p_ghots");
 
         /***********************************/
-        // Extract ghosts for Field
+        // Extract ghosts for p-vector
         shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_p{};
 
-        // Exchange ghosts for field
+        // Exchange ghosts for p-vector
         shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_p{};
 
-        // Replace ghosts for field
+        // Replace ghosts for p-vector
         shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_p{};
+
+        // Extract ghosts for phi-vector
+        shamrock::solvergraph::ExtractGhostField<Tscal> node_gz_phi{};
+
+        // Exchange ghosts for phi-vector
+        shamrock::solvergraph::ExchangeGhostField<Tscal> node_exch_gz_phi{};
+
+        // Replace ghosts for phi-vector
+        shamrock::solvergraph::ReplaceGhostField<Tscal> node_replace_gz_phi{};
 
         struct Edges {
             const shamrock::solvergraph::Indexes<u32> &sizes;
@@ -289,6 +298,15 @@ namespace shammodels::basegodunov::modules {
             //
             res_precond_node.set_edges(
                 sizes, cell_neigh_graph, spans_block_cell_sizes, spans_phi_res, spans_phi_z);
+
+            // set node_gz edges  for p-vectors
+            node_gz_phi.set_edges(spans_phi, idx_in_ghost, p_ghosts);
+
+            // set node_exch_gz edges for p-vectors
+            node_exch_gz_phi.set_edges(rank_owner, p_ghosts);
+
+            // replace ghosts for p-vectors
+            node_replace_gz_phi.set_edges(p_ghosts, spans_phi);
         }
 
         inline Edges get_edges() {
