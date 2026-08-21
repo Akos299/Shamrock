@@ -49,6 +49,7 @@ namespace shammodels::basegodunov::modules {
             shamrock::solvergraph::Field<Tscal> &spans_phi_res;
             shamrock::solvergraph::Field<Tscal> &spans_phi_res_bis;
             shamrock::solvergraph::Field<Tscal> &spans_phi_p;
+            shamrock::solvergraph::Field<Tscal> &spans_rhs;
         };
 
         inline void set_edges(
@@ -60,10 +61,11 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> mean_rho,
             std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_res,
             std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_res_bis,
-            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_p) {
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_p,
+            std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_rhs) {
             __internal_set_ro_edges(
                 {sizes, cell_neigh_graph, spans_block_cell_sizes, spans_phi, spans_rho, mean_rho});
-            __internal_set_rw_edges({spans_phi_res, spans_phi_res_bis, spans_phi_p});
+            __internal_set_rw_edges({spans_phi_res, spans_phi_res_bis, spans_phi_p, spans_rhs});
         }
 
         inline Edges get_edges() {
@@ -76,7 +78,8 @@ namespace shammodels::basegodunov::modules {
                 get_ro_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(5),
                 get_rw_edge<shamrock::solvergraph::Field<Tscal>>(0),
                 get_rw_edge<shamrock::solvergraph::Field<Tscal>>(1),
-                get_rw_edge<shamrock::solvergraph::Field<Tscal>>(2)};
+                get_rw_edge<shamrock::solvergraph::Field<Tscal>>(2),
+                get_rw_edge<shamrock::solvergraph::Field<Tscal>>(3)};
         }
 
         void _impl_evaluate_internal();

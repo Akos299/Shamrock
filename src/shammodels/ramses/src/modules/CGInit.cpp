@@ -89,10 +89,11 @@ namespace {
                         const u32 cell_global_id = (u32) gid;
                         const u32 block_id       = cell_global_id / block_size;
                         const u32 cell_loc_id    = cell_global_id % block_size;
+                        Tscal delta_cell         = cell_sizes[block_id];
 
-                        Tscal delta_cell = cell_sizes[block_id];
+                        auto jac_weight = shammodels::basegodunov::JacobiWeight<Tscal>{Tscal(1.0)};
 
-                        auto Aphi = shammodels::basegodunov::laplacian_7pt<Tscal, Tvec>(
+                        auto Aphi = shammodels::basegodunov::laplacian_7pt_2<Tscal, Tvec>(
                             cell_sizes,
                             block_size,
                             cell_global_id,
@@ -102,27 +103,11 @@ namespace {
                             graph_iter_ym,
                             graph_iter_zp,
                             graph_iter_zm,
+                            // shammodels::basegodunov::NoJacobiWeight{},
+                            jac_weight,
                             [=](u32 id) {
-                                return sycl::isnan(phi[id]) ? 0.0 : phi[id];
+                                return phi[id];
                             });
-
-                        auto jac_weight = shammodels::basegodunov::JacobiWeight<Tscal>{Tscal(1.0)};
-
-                        // auto Aphi = shammodels::basegodunov::laplacian_7pt_2<Tscal, Tvec>(
-                        //     cell_sizes,
-                        //     block_size,
-                        //     cell_global_id,
-                        //     graph_iter_xp,
-                        //     graph_iter_xm,
-                        //     graph_iter_yp,
-                        //     graph_iter_ym,
-                        //     graph_iter_zp,
-                        //     graph_iter_zm,
-                        //     // shammodels::basegodunov::NoJacobiWeight{},
-                        //     jac_weight,
-                        //     [=](u32 id) {
-                        //         return sycl::isnan(phi[id]) ? 0.0 : phi[id];
-                        //     });
 
                         auto dV    = delta_cell * delta_cell * delta_cell;
                         auto b_rhs = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
@@ -130,13 +115,8 @@ namespace {
                         auto res                = b_rhs - Aphi;
                         phi_res[cell_global_id] = res;
                         rhs[cell_global_id]     = b_rhs;
-
-                        phi_z[cell_global_id] = res;
-                        // / jac_weight.value;
-                        //  / (6.0 * delta_cell);
-                        phi_p[cell_global_id] = res;
-                        // / jac_weight.value;
-                        //   / (6.0 * delta_cell);
+                        phi_z[cell_global_id]   = res / jac_weight.value;
+                        phi_p[cell_global_id]   = res / jac_weight.value;
 
                         // if (jac_weight.value != 6.0 * delta_cell)
                         //     logger::raw_ln("\n computed: \t ",jac_weight.value, "\t ", "expected:
@@ -192,7 +172,7 @@ namespace shammodels::basegodunov::modules {
         std::string span_phi_p             = get_rw_edge_base(1).get_tex_symbol();
 
         std::string tex = R"tex(
-            Initiation step of CG
+            Initiation step of PCG
         )tex";
 
         shambase::replace_all(tex, "{sizes}", sizes);
@@ -210,3 +190,7 @@ namespace shammodels::basegodunov::modules {
 } // namespace shammodels::basegodunov::modules
 
 template class shammodels::basegodunov::modules::CGInit<f64_3, i64_3>;
+
+../ examples / TO_MIGRATE / ramses / amr_kh_leuco.py../ examples / TO_MIGRATE / ramses
+    / visualize_periodicity.py../ src / shammodels / ramses / include / shammodels / ramses / config
+    / enum_AMRInterpMode.hpp

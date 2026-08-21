@@ -71,13 +71,10 @@ namespace shammodels::basegodunov::modules {
                     "\t res_pcg = \t ",
                     edges.rz_old_values.value,
                     "\t\n\n");
-                r_0 = edges.old_values.value;
                 logger::raw_ln("rhs value = \t", edges.rhs_norm_values.value, "\t\n\n");
             }
 
             /*** Main loop */
-            // auto dev_sched = shamsys::instance::get_compute_scheduler_ptr();
-
             while ((k < Niter_max)) {
                 // increment iteration
                 k = k + 1;
@@ -142,9 +139,6 @@ namespace shammodels::basegodunov::modules {
                 edges.rz_old_values = edges.rz_new_values;
 
                 if (shamcomm::world_rank() == 0) {
-                    // logger::raw_ln(
-                    //     " k = \t ", k, " \t res  = \t ", edges.old_values.value, "\t", "\t
-                    //     res_pcg = \t " ,edges.rz_old_values.value, "\t\n\n");
 
                     logger::raw_ln(
                         " k = \t ",
@@ -160,9 +154,6 @@ namespace shammodels::basegodunov::modules {
                         "\t rr/rhs = \t",
                         edges.old_values.value / edges.rhs_norm_values.value,
                         "\t\n\n");
-
-                    // logger::raw_ln(" k = \t ", k, "\t rr/rhs = \t", edges.old_values.value /
-                    // edges.rhs_norm_values.value, "\t\n\n");
                 }
 
                 // /** compute p_{k+1} = r_{k+1} + \beta_{k} p_{k} */

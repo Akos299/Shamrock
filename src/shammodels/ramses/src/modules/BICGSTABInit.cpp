@@ -44,6 +44,7 @@ namespace {
                     auto &phi_res_span     = edges.spans_phi_res.get_spans().get(id);
                     auto &phi_res_bis_span = edges.spans_phi_res_bis.get_spans().get(id);
                     auto &phi_p_span       = edges.spans_phi_p.get_spans().get(id);
+                    auto &rhs_span         = edges.spans_rhs.get_spans().get(id);
 
                     AMRGraph &graph_neigh_xp = shambase::get_check_ref(
                         oriented_cell_graph.graph_links[shammodels::basegodunov::Direction::xp]);
@@ -73,7 +74,7 @@ namespace {
                             graph_neigh_ym,
                             graph_neigh_zp,
                             graph_neigh_zm},
-                        sham::MultiRef{phi_res_span, phi_res_bis_span, phi_p_span},
+                        sham::MultiRef{phi_res_span, phi_res_bis_span, phi_p_span, rhs_span},
                         cell_count,
                         [block_size, fourPiG, mean_rho](
                             u32 cell_global_id,
@@ -88,7 +89,8 @@ namespace {
                             const auto graph_iter_zm,
                             Tscal *__restrict phi_res,
                             Tscal *__restrict phi_res_bis,
-                            Tscal *__restrict phi_p) {
+                            Tscal *__restrict phi_p,
+                            Tscal *__restrict rhs) {
                             auto Aphi = shammodels::basegodunov::laplacian_7pt<Tscal, Tvec>(
                                 cell_sizes,
                                 block_size,
@@ -104,19 +106,13 @@ namespace {
                                     return phi[id];
                                 });
 
-                            const u32 block_id = cell_global_id / block_size;
-                            Tscal delta_cell   = cell_sizes[block_id];
-                            auto dV            = delta_cell * delta_cell * delta_cell;
-                            // TODO : remember to remove the isnan check
-                            auto b_rhs = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
+                            const u32 block_id  = cell_global_id / block_size;
+                            Tscal delta_cell    = cell_sizes[block_id];
+                            auto dV             = delta_cell * delta_cell * delta_cell;
+                            const auto b_rhs    = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
+                            const auto residual = b_rhs - Aphi;
 
-                            // -fourPiG
-                            //   * (sycl::isnan(rho[cell_global_id]) ? 0.0
-                            //                                       : rho[cell_global_id] -
-                            //                                       mean_rho)
-                            //   * dV;
-
-                            const auto residual         = b_rhs - Aphi;
+                            rhs[cell_global_id]         = b_rhs;
                             phi_res[cell_global_id]     = residual;
                             phi_res_bis[cell_global_id] = (residual);
                             phi_p[cell_global_id]       = residual;
@@ -138,6 +134,7 @@ namespace shammodels::basegodunov::modules {
         edges.spans_phi_res.ensure_sizes(edges.sizes.indexes);
         edges.spans_phi_res_bis.ensure_sizes(edges.sizes.indexes);
         edges.spans_phi_p.ensure_sizes(edges.sizes.indexes);
+        edges.spans_rhs.ensure_sizes(edges.sizes.indexes);
 
         _Kernel<Tvec, TgridVec>::kernel(edges, block_size, fourPiG);
     }

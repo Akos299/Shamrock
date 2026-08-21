@@ -52,10 +52,29 @@ namespace shammodels::basegodunov::modules {
          */
         node_init.evaluate();
 
+        /** compute <b,b> */
+        node_ddot_rhs.evaluate();
+        // if (shamcomm::world_rank() == 0) {
+        //     logger::raw_ln("k= \t ", k, " \t rhs_norm = \t", edges.old_values.value);
+        // }
+
         /** compute <r'_0,r'_0>*/
         node_ddot_rstarj_rstarj.evaluate();
 
         u32 k = 0;
+        if (shamcomm::world_rank() == 0) {
+            logger::raw_ln(
+                "k = \t",
+                k,
+                "\t res = \t ",
+                edges.old_values.value,
+                "\t",
+                "\t res_pcg = \t ",
+                edges.rz_old_values.value,
+                "\t\n\n");
+            r_0 = edges.old_values.value;
+            logger::raw_ln("rhs value = \t", edges.rhs_norm_values.value, "\t\n\n");
+        }
         /* Main loop */
         while ((k < Niter_max)) {
 
@@ -107,23 +126,11 @@ namespace shammodels::basegodunov::modules {
                 edges.alpha.value = edges.old_values.value / sigma;
             }
 
-            logger::raw_ln(
-                "k=",
-                k,
-                " rho=",
-                edges.old_values.value,
-                " sigma=",
-                sigma,
-                " alpha=",
-                edges.alpha.value,
+            // if (shamcomm::world_rank() == 0) {
+            //     logger::raw_ln("edges.alpha.value =  \t ", edges.alpha.value);
+            // }
 
-                "\t\n\n");
-
-            if (shamcomm::world_rank() == 0) {
-                logger::raw_ln("edges.alpha.value = \t ", k, " \t ", edges.alpha.value);
-            }
-
-            auto alp_saved = edges.alpha.value;
+            const auto alp_saved = edges.alpha.value;
 
             /** compute s_{k} = r_{k} - alpha_{k}Ap_{k} */
             edges.e_norm.value = 0;
@@ -139,11 +146,13 @@ namespace shammodels::basegodunov::modules {
             // }
 
             /** perform cvg test*/
-            if (edges.e_norm.value < tol_cvg * tol_cvg) {
+            const auto rel_sj_sqr = edges.e_norm.value / edges.rhs_norm_value.value;
+            if (rel_sj_sqr < tol_cvg * tol_cvg) {
                 edges.alpha.value = alp_saved;
                 node_new_phi_happy_break.evaluate();
                 if (shamcomm::world_rank() == 0) {
-                    logger::raw_ln("Converge on s-residual @@@@@@@@@@ \n");
+                    logger::raw_ln(
+                        "Converge on s-residual: rel_norm = ", sycl::sqrt(rel_sj_sqr), " \t\n");
                 }
 
                 break;
@@ -215,9 +224,11 @@ namespace shammodels::basegodunov::modules {
             }
 
             /** perform cvg test*/
-            if (edges.e_norm.value < tol_cvg * tol_cvg) {
+            const auto rel_rj_sqr = edges.e_norm.value / edges.rhs_norm_value.value;
+            if (rel_rj_sqr < tol_cvg * tol_cvg) {
                 if (shamcomm::world_rank() == 0) {
-                    logger::raw_ln("Converge on residual \n");
+                    logger::raw_ln(
+                        "Converge on residual: rel_norm = ", sycl::sqrt(rel_rj_sqr), "\t\n");
                 }
                 break;
             }
@@ -233,20 +244,21 @@ namespace shammodels::basegodunov::modules {
 
             const auto rho_new = edges.new_values.value;
 
-            logger::raw_ln(
-                "restart diagnostic: ",
-                "rho_new = ",
-                rho_new,
-                " rr = ",
-                edges.e_norm.value,
-                " rstar_rstar = ",
-                edges.shadow_res_norm.value,
-                " threshold = ",
-                (tol_happy_bk * tol_happy_bk) * edges.e_norm.value * edges.shadow_res_norm.value,
-                "\t\n\n"
-                // " rho2 = ", rho_new * rho_new
-            );
+            // logger::raw_ln(
+            //     "restart diagnostic: ",
+            //     "rho_new = ",
+            //     rho_new,
+            //     " rr = ",
+            //     edges.e_norm.value,
+            //     " rstar_rstar = ",
+            //     edges.shadow_res_norm.value,
+            //     " threshold = ",
+            //     (tol_happy_bk * tol_happy_bk) * edges.e_norm.value * edges.shadow_res_norm.value,
+            //     "\t\n\n"
+            //     // " rho2 = ", rho_new * rho_new
+            // );
 
+            // use the relative error
             if ((rho_new * rho_new) < (tol_happy_bk * tol_happy_bk) * (edges.e_norm.value)
                                           * edges.shadow_res_norm.value) {
 
@@ -277,6 +289,15 @@ namespace shammodels::basegodunov::modules {
 
             // increment iteration
             k = k + 1;
+        }
+
+        edges.nb_iter.value = k;
+
+        if (true) {
+            // update ghost for gravitational forces computation
+            node_gz_phi.evaluate();
+            node_exch_gz_phi.evaluate();
+            node_replace_gz_phi.evaluate();
         }
     }
 

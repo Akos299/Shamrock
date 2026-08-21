@@ -79,7 +79,7 @@ L = 1.0
 X0, Y0, Z0 = 0.5 * L, 0.5 * L, 0.5 * L
 SIGMA = 0.05
 BASES = [8, 16, 32]
-CG_TOL = 1e-12
+CG_TOL = 1e-6
 CG_MAXITER = 200000
 # 20000
 n_bound_lenth = 3
@@ -806,7 +806,7 @@ def convergence_study():
     # Save
     # ========================================================
 
-    fig.savefig("poisson_convergence_fixed_sigma.png", dpi=300, bbox_inches="tight")
+    fig.savefig("poisson_convergence_fixed_sigma_2.png", dpi=300, bbox_inches="tight")
 
     plt.show()
 

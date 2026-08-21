@@ -1202,7 +1202,10 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.alpha,
                 storage.beta,
                 storage.wstab_val,
-                storage.shadow_res_norm);
+                storage.shadow_res_norm,
+                storage.nb_iter,
+                storage.phi_rhs,
+                storage.rhs_norm_value);
 
             start_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_bicgstab_old)>(std::move(node_bicgstab_old)));
@@ -1864,7 +1867,10 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.alpha,
                 storage.beta,
                 storage.wstab_val,
-                storage.shadow_res_norm);
+                storage.shadow_res_norm,
+                storage.nb_iter,
+                storage.phi_rhs,
+                storage.rhs_norm_value);
 
             end_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_bicgstab_next)>(std::move(node_bicgstab_next)));
