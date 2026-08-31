@@ -3,6 +3,75 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib as mpl
+
+
+# ======================================================
+#    Matplotlib config
+# ======================================================
+
+lw, ms = 4, 7  # linewidth  #markersize
+elw, cs = 0.75, 0.75  # elinewidth and capthick #capsize for errorbar specifically
+fontsize = 25
+tickwidth, ticksize = 1.5, 4
+mpl.rcParams["axes.titlesize"] = fontsize * 1.5
+mpl.rcParams["axes.labelsize"] = fontsize * 1.5
+mpl.rcParams["xtick.major.size"] = ticksize
+mpl.rcParams["ytick.major.size"] = ticksize
+mpl.rcParams["xtick.major.width"] = tickwidth
+mpl.rcParams["ytick.major.width"] = tickwidth
+mpl.rcParams["xtick.minor.size"] = ticksize
+mpl.rcParams["ytick.minor.size"] = ticksize
+mpl.rcParams["xtick.minor.width"] = tickwidth
+mpl.rcParams["ytick.minor.width"] = tickwidth
+mpl.rcParams["lines.linewidth"] = lw
+mpl.rcParams["lines.markersize"] = ms
+mpl.rcParams["lines.markeredgewidth"] = 1.15
+mpl.rcParams["lines.dash_joinstyle"] = "bevel"
+mpl.rcParams["markers.fillstyle"] = "top"
+mpl.rcParams["lines.dashed_pattern"] = 6.4, 1.6, 1, 1.6
+mpl.rcParams["xtick.labelsize"] = fontsize
+mpl.rcParams["ytick.labelsize"] = fontsize
+mpl.rcParams["legend.fontsize"] = fontsize
+mpl.rcParams["grid.linewidth"] = 10
+mpl.rcParams["font.weight"] = "bold"
+mpl.rcParams["font.serif"] = "latex"
+
+
+
+
+
+
+plt.rcParams.update(
+    {
+        "font.size": 15,
+        "axes.labelsize": 20,
+        "axes.titlesize": 15,
+        "xtick.labelsize": 15,
+        "ytick.labelsize": 15,
+        "legend.fontsize": 15,
+        "font.weight": "bold",
+    }
+)
+
+mpl.rcParams.update(
+    {
+        "text.usetex": True,  # Use LaTeX
+        "font.family": "serif",
+        "font.serif": ["Latin Modern Roman"],  # Match lmodern
+        # LaTeX preamble to match your class
+        "text.latex.preamble": r"""
+        \usepackage{lmodern}
+        \usepackage{amsmath}
+        \usepackage{amssymb}
+    """,
+        # Optional but recommended
+        "axes.unicode_minus": False,
+    }
+)
+mpl.rcParams["pgf.texsystem"] = "pdflatex"
+
+
 
 # ============================================================
 # Configuration
@@ -268,8 +337,8 @@ for ax, N in zip(axes, resolutions):
             k,
             r,
             marker="o",
-            markersize=3,
-            linewidth=1.8,
+            markersize=7,
+            linewidth=4,
             label="PCG",
         )
 
@@ -287,8 +356,8 @@ for ax, N in zip(axes, resolutions):
             k,
             r,
             marker="s",
-            markersize=3,
-            linewidth=1.8,
+            markersize=7,
+            linewidth=4,
             label="BiCGSTAB",
         )
 
@@ -300,20 +369,23 @@ for ax, N in zip(axes, resolutions):
         TOL,
         linestyle="--",
         linewidth=1.2,
-        label=r"$10^{-6}$ tolerance",
+        color="black",
+        label=rf"${TOL:.0e}$ tolerance",
     )
 
     ax.set_xlabel("Iteration $k$")
-    ax.set_ylabel(r"$\|r_k\|_2 / \|b\|_2$")
+    ax.set_ylabel(
+        r"$\frac{\left\|r_k\right\|_2}{\left\|b\right\|_2}$"
+    )
 
     ax.set_title(rf"$N={N}^3$")
 
-    ax.grid(
-        True,
-        which="both",
-        linestyle=":",
-        alpha=0.5,
-    )
+    # ax.grid(
+    #     True,
+    #     which="both",
+    #     linestyle=":",
+    #     alpha=0.5,
+    # )
 
     ax.legend()
 
@@ -377,11 +449,11 @@ ax.set_ylabel("Number of iterations")
 
 ax.set_title("Solver iteration count vs resolution")
 
-ax.grid(
-    True,
-    linestyle=":",
-    alpha=0.5,
-)
+# ax.grid(
+#     True,
+#     linestyle=":",
+#     alpha=0.5,
+# )
 
 ax.legend()
 
