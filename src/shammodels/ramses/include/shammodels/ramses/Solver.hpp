@@ -30,6 +30,9 @@
 #include "shamunits/Constants.hpp"
 #include "shamunits/UnitSystem.hpp"
 #include <algorithm>
+#include <functional>
+#include <optional>
+#include <vector>
 
 namespace shammodels::basegodunov {
     template<class Tvec, class TgridVec>
@@ -91,6 +94,12 @@ namespace shammodels::basegodunov {
                 edge->data = 0;
             }
         }
+
+        struct SolverStepCallback {
+            std::optional<std::function<void(void)>> step_begin_callback;
+            std::optional<std::function<void(void)>> step_end_callback;
+        };
+        std::vector<SolverStepCallback> timestep_callbacks{};
 
         inline void init_required_fields() { solver_config.set_layout(context.get_pdl_write()); }
 
