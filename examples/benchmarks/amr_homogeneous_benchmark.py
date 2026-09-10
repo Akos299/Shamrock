@@ -36,6 +36,11 @@ N_target_blocks = min(N_target_blocks, 2**22)
 if device_properties["type"] == "CPU":
     N_target_blocks = min(N_target_blocks, 2**20)
 
+# make_base_grid takes a per-axis block count, not a total, so convert the
+# memory-based total block budget above into a per-axis size (kept as a power
+# of two so the base grid splits evenly across the 3 axes).
+N_per_axis = 2 ** (int(math.log2(N_target_blocks)) // 3)
+
 shamrock.backends.reset_mem_info_max()
 
 
@@ -47,9 +52,10 @@ scheduler_merge_val = 1
 
 if shamrock.sys.world_rank() == 0:
     print("N_target_block", N_target_blocks)
+    print("N_per_axis", N_per_axis)
     print("scheduler_split_val", scheduler_split_val)
     print("scheduler_merge_val", scheduler_merge_val)
-    print("N_target", N_target_blocks * 8)
+    print("N_target", N_per_axis**3 * 8)
 
 
 ctx = shamrock.Context()
@@ -63,7 +69,7 @@ multz = 1
 
 
 cfg = model.gen_default_config()
-scale_fact = 1 / (sz * N_target_blocks * multx)
+scale_fact = 1 / (sz * N_per_axis * multx)
 cfg.set_scale_factor(scale_fact)
 cfg.set_riemann_solver_hllc()
 cfg.set_eos_gamma(1.66667)
@@ -73,7 +79,7 @@ model.init_scheduler(scheduler_split_val, scheduler_merge_val)
 model.make_base_grid(
     (0, 0, 0),
     (sz, sz, sz),
-    (N_target_blocks * multx, N_target_blocks * multy, N_target_blocks * multz),
+    (N_per_axis * multx, N_per_axis * multy, N_per_axis * multz),
 )
 
 
