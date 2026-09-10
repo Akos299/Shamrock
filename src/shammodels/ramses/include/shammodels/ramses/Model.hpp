@@ -61,6 +61,12 @@ namespace shammodels::basegodunov {
 
         void dump_vtk(std::string filename);
 
+        struct SolverStepCallback {
+            std::optional<std::function<void(void)>> step_begin_callback;
+            std::optional<std::function<void(void)>> step_end_callback;
+        };
+        std::vector<SolverStepCallback> timestep_callbacks{};
+
         template<class T>
         inline void set_field_value_lambda(
             std::string field_name,
