@@ -239,7 +239,10 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
         auto e = q.submit(depend_list, [&, dt, ndust, friction_control](sycl::handler &cgh) {
             shambase::parallel_for(cgh, cell_count, "add_drag [irk1] SG", [=](u32 id_a) {
                 Tvec tmp_mom_1 = acc_rhov_new_patch[id_a];
-                Tscal tmp_rho  = acc_rho_old[id_a];
+                // logger::raw("tmp_1= \t", tmp_mom_1[0], "tmp_2= \t", tmp_mom_1[1], "tmp_3= \t",
+                // tmp_mom_1[2], "\n");
+
+                Tscal tmp_rho = acc_rho_old[id_a];
 
                 auto conststate = shammath::ConsState<Tvec>{
                     acc_rho_new_patch[id_a], acc_rhoe_new_patch[id_a], acc_rhov_new_patch[id_a]};
@@ -247,13 +250,17 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
                 auto cs        = sound_speed(primstate, gamma);
 
                 for (u32 i = 0; i < ndust; i++) {
+                    // logger::raw_ln("_alppha \t", )
                     // const Tscal inv_dt_alphas = 1.0 / (1.0 + acc_alphas[i] * dt);
                     // const Tscal dt_alphas     = dt * acc_alphas[i];
+                    // logger::raw_ln("sg_i\t", acc_grains_size[i], "\t rg_i ", acc_internal_rho[i]
+                    // ,"\n\n");
                     const Tscal ts_i
                         = sycl::sqrt((shamunits::pi<Tscal> * solver_config.eos_gamma) / 8.0)
                           * (acc_internal_rho[i] * acc_grains_size[i])
                           / (acc_rho_new_patch[id_a] * cs);
-                    const Tscal _alpha        = 1. / ts_i;
+                    const Tscal _alpha = 1. / ts_i;
+                    // logger::raw_ln("_alppha \t", 1. / ts_i, "\n\n");
                     const Tscal inv_dt_alphas = 1.0 / (1.0 + _alpha * dt);
                     const Tscal dt_alphas     = dt * _alpha;
 
@@ -310,6 +317,10 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
 
                 Eg += acc_rhoe_new_patch[id_a] + (1 - friction_control) * work_drag
                       - friction_control * dissipation;
+
+                // logger::raw("tmp_1= \t", tmp_vel[0], "tmp_2= \t", tmp_vel[1], "tmp_3= \t",
+                // tmp_vel[2], "\n");
+
                 acc_rhov_old[id_a] = tmp_vel * acc_rho_old[id_a];
                 acc_rhoe_old[id_a] = Eg;
                 acc_rho_old[id_a]  = acc_rho_new_patch[id_a];
@@ -346,6 +357,8 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
         rhov_d_old.complete_event_state(e);
 
         alphas_buf.complete_event_state(e);
+        internal_rho_buf.complete_event_state(e);
+        grains_size_buf.complete_event_state(e);
     });
 }
 

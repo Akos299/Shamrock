@@ -2153,7 +2153,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
      * access them.
      */
 
-    if (dt_input > 0)
+    // if (dt_input > 0)
 
     {
         logger::raw_ln("For ref \n\n");
@@ -2163,7 +2163,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
 
     if (solver_config.should_compute_rho_mean() && shamcomm::world_rank() == 0) {
         auto rho_means = shambase::get_check_ref(storage.rho_mean).value;
-        logger::raw_ln("Rho-mean in Solver.cpp: ", rho_means, "\n\n");
+        // logger::raw_ln("Rho-mean in Solver.cpp: ", rho_means, "\n\n");
     }
 
     modules::ComputeCFL cfl_compute(context, solver_config, storage);
