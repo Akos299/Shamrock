@@ -71,7 +71,8 @@ else()
     message(STATUS "Using git submodule pybind11")
 
     _check_git_submodule_cloned(
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/pybind11 a2e59f0e7065404b44dfe92a28aca47ba1378dc4
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/pybind11 5b859901d8e6f1e8a2fce927d29b0f04d8a157f1
+        # a2e59f0e7065404b44dfe92a28aca47ba1378dc4
     )
 
     add_subdirectory(external/pybind11)

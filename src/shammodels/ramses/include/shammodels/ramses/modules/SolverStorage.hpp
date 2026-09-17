@@ -114,8 +114,10 @@ namespace shammodels::basegodunov {
         std::shared_ptr<shamrock::solvergraph::Field<Tvec>> dz_v_dust;
 
         std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> rho_mean;
+        std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> rho_dust_mean;
         std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> simulation_volume;
         std::shared_ptr<shamrock::solvergraph::Field<Tscal>> cell_mass;
+        std::shared_ptr<shamrock::solvergraph::Field<Tscal>> cell_mass_dust;
 
         Component<shambase::DistributedData<shammath::AABB<TgridVec>>> merge_patch_bounds;
 
@@ -278,6 +280,7 @@ namespace shammodels::basegodunov {
         std::shared_ptr<shamrock::solvergraph::Field<Tscal>> refs_rho_next;
         std::shared_ptr<shamrock::solvergraph::Field<Tvec>> refs_rhov_next;
         std::shared_ptr<shamrock::solvergraph::Field<Tscal>> refs_rhoe_next;
+        std::shared_ptr<shamrock::solvergraph::Field<Tvec>> refs_rhov_next_d;
 
         // for BICGSTAB
         std::shared_ptr<shamrock::solvergraph::Field<Tscal>> phi_res_bis;

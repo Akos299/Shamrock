@@ -225,6 +225,8 @@ namespace shammodels::basegodunov::modules {
             edges.spans_phi_g.ensure_sizes(edges.sizes.indexes);
 
             KernelSelfGravAcc<Tvec, TgridVec>::kernel(edges, block_size);
+
+            logger::raw_ln("Node garv Compute_acceleration \n\n");
         }
     }
 

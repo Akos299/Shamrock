@@ -764,6 +764,8 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
         f64_3 *rho_vel;
         f64 *rhoE;
         u64 p_id;
+        f64 *rho_dust;
+        f64_3 *rho_vel_dust;
         // f64* cell_sizes;
 
         // this will be needed for interpolation during refinement
@@ -820,7 +822,15 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             p_id    = id_patch;
             rho     = pdat.get_field<f64>(2).get_buf().get_write_access(depends_list);
             rho_vel = pdat.get_field<f64_3>(3).get_buf().get_write_access(depends_list);
-            rhoE    = pdat.get_field<f64>(4).get_buf().get_write_access(depends_list);
+
+            rho_dust     = pdat.get_field<f64>(pdat.pdl().get_field_idx<Tscal>("rho_dust"))
+                               .get_buf()
+                               .get_write_access(depends_list);
+            rho_vel_dust = pdat.get_field<f64_3>(pdat.pdl().get_field_idx<Tscal>("rhovel_dust"))
+                               .get_buf()
+                               .get_write_access(depends_list);
+            rhoE         = pdat.get_field<f64>(4).get_buf().get_write_access(depends_list);
+
             // cell_sizes = shambase::get_check_ref(storage.block_cell_sizes)
             //                 .get_buf(id_patch)
             //                 .get_write_access(depends_list);
@@ -833,6 +843,12 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             shamrock::patch::PatchDataLayer &pdat) {
             pdat.get_field<f64>(2).get_buf().complete_event_state(resulting_events);
             pdat.get_field<f64_3>(3).get_buf().complete_event_state(resulting_events);
+            pdat.get_field<f64>(pdat.pdl().get_field_idx<Tscal>("rho_dust"))
+                .get_buf()
+                .complete_event_state(resulting_events);
+            pdat.get_field<f64_3>(pdat.pdl().get_field_idx<Tscal>("rhovel_dust"))
+                .get_buf()
+                .complete_event_state(resulting_events);
             pdat.get_field<f64>(4).get_buf().complete_event_state(resulting_events);
 
             shambase::get_check_ref(storage.cell_graph_edge)
@@ -921,6 +937,11 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             std::array<f64_3, AMRBlock::block_size> old_rho_vel_block;
             std::array<f64, AMRBlock::block_size> old_rhoE_block;
 
+            std::array<f64, AMRBlock::block_size> old_rho_dust_block;
+            std::array<f64_3, AMRBlock::block_size> old_rho_vel_dust_block;
+
+            u32 ndust = 1;
+
             // save old block
             for (u32 loc_id = 0; loc_id < AMRBlock::block_size; loc_id++) {
 
@@ -929,6 +950,11 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                 old_rho_block[loc_id]     = acc.rho[old_cell_idx];
                 old_rho_vel_block[loc_id] = acc.rho_vel[old_cell_idx];
                 old_rhoE_block[loc_id]    = acc.rhoE[old_cell_idx];
+
+                for (auto idust = 0; idust < ndust; idust++) {
+                    old_rho_dust_block[loc_id]     = acc.rho_dust[idust * ndust + old_cell_idx];
+                    old_rho_vel_dust_block[loc_id] = acc.rho_vel_dust[idust * ndust + old_cell_idx];
+                }
             }
 
             for (u32 loc_id = 0; loc_id < AMRBlock::block_size; loc_id++) {
@@ -971,6 +997,10 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                 Tscal rho_block    = old_rho_block[loc_id];
                 Tvec rho_vel_block = old_rho_vel_block[loc_id];
                 Tscal rhoE_block   = old_rhoE_block[loc_id];
+
+                Tscal rho_dust_block    = old_rho_dust_block[loc_id];
+                Tvec rho_vel_dust_block = old_rho_vel_dust_block[loc_id];
+
                 for (u32 subdiv_lid = 0; subdiv_lid < 8; subdiv_lid++) {
 
                     auto [sx, sy, sz] = get_coord_ref(subdiv_lid);
@@ -991,6 +1021,9 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                     acc.rho[new_cell_idx]     = rho_block;
                     acc.rho_vel[new_cell_idx] = rho_vel_block;
                     acc.rhoE[new_cell_idx]    = rhoE_block;
+
+                    acc.rho[new_cell_idx]     = rho_dust_block;
+                    acc.rho_vel[new_cell_idx] = rho_vel_dust_block;
                 }
             }
         }
@@ -1007,10 +1040,16 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             std::array<f64_3, AMRBlock::block_size> rho_vel_block;
             std::array<f64, AMRBlock::block_size> rhoE_block;
 
+            std::array<f64, AMRBlock::block_size> rho_dust_block;
+            std::array<f64_3, AMRBlock::block_size> rho_vel_dust_block;
+
             for (u32 cell_id = 0; cell_id < AMRBlock::block_size; cell_id++) {
                 rho_block[cell_id]     = {};
                 rho_vel_block[cell_id] = {};
                 rhoE_block[cell_id]    = {};
+
+                rho_dust_block[cell_id]     = {};
+                rho_vel_dust_block[cell_id] = {};
             }
 
             // for each siblings block, perform restriction from its 8 children cells
@@ -1019,21 +1058,33 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                 auto rho_vel_pid = rho_vel_block[pid];
                 auto rhoe_pid    = rhoE_block[pid];
 
+                auto rho_dust_pid     = rho_dust_block[pid];
+                auto rho_vel_dust_pid = rho_vel_dust_block[pid];
+
                 for (u32 cell_id = 0; cell_id < AMRBlock::block_size; cell_id++) {
                     rho_pid += acc.rho[old_blocks[pid] * AMRBlock::block_size + cell_id];
                     rho_vel_pid += acc.rho_vel[old_blocks[pid] * AMRBlock::block_size + cell_id];
                     rhoe_pid += acc.rhoE[old_blocks[pid] * AMRBlock::block_size + cell_id];
+
+                    rho_dust_pid += acc.rho_dust[old_blocks[pid] * AMRBlock::block_size + cell_id];
+                    rho_vel_dust_pid
+                        += acc.rho_vel_dust[old_blocks[pid] * AMRBlock::block_size + cell_id];
                 }
                 rho_block[pid]     = rho_pid * (1. / 8.);
                 rho_vel_block[pid] = rho_vel_pid * (1. / 8.);
                 rhoE_block[pid]    = rhoe_pid * (1. / 8.);
+
+                rho_dust_block[pid]     = rho_dust_pid * (1. / 8.);
+                rho_vel_dust_block[pid] = rho_vel_dust_pid * (1. / 8.);
             }
 
             for (u32 cell_id = 0; cell_id < AMRBlock::block_size; cell_id++) {
-                u32 newcell_idx          = new_cell * AMRBlock::block_size + cell_id;
-                acc.rho[newcell_idx]     = rho_block[cell_id];
-                acc.rho_vel[newcell_idx] = rho_vel_block[cell_id];
-                acc.rhoE[newcell_idx]    = rhoE_block[cell_id];
+                u32 newcell_idx               = new_cell * AMRBlock::block_size + cell_id;
+                acc.rho[newcell_idx]          = rho_block[cell_id];
+                acc.rho_vel[newcell_idx]      = rho_vel_block[cell_id];
+                acc.rho_dust[newcell_idx]     = rho_dust_block[cell_id];
+                acc.rho_vel_dust[newcell_idx] = rho_vel_dust_block[cell_id];
+                acc.rhoE[newcell_idx]         = rhoE_block[cell_id];
             }
         }
     };
@@ -1319,7 +1370,7 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
             auto mu  = 2.3;                // molecular gas
 
             auto gamma = 5. / 3.;
-	    auto rho_c =  3.7e-13 * 1e3; // [g/cm^3 ===> kg/m^3]
+            auto rho_c = 3.7e-13 * 1e3; // [g/cm^3 ===> kg/m^3]
 
             //--------------------------------
             Tscal block_max_jeans_length = shambase::VectorProperties<Tscal>::get_zero();
@@ -1330,20 +1381,20 @@ void shammodels::basegodunov::modules::AMRGridRefinementHandler<Tvec, TgridVec>:
                 block_rho_max = sham::details::g_sycl_max(block_rho_max, block_rho[idx]);
             }
 
-            //Tscal block_min_jeans_length = sycl::sqrt(
-              //  (shamunits::pi<Tscal> * kb * T_0)
-             //   / (N_J * N_J * ctes.G() * block_rho_max * mu * m_H));
+            // Tscal block_min_jeans_length = sycl::sqrt(
+            //   (shamunits::pi<Tscal> * kb * T_0)
+            //   / (N_J * N_J * ctes.G() * block_rho_max * mu * m_H));
 
             // auto cs = T_0;
             // auto G = 1.;
             // Tscal block_min_jeansength = sycl::sqrt(shamunits::pi<Tscal> * cs*cs / ( N_J * N_J
             // * G * block_rho_max));
-	    //
-	    auto cs0_sqr = (kb * T_0) / (mu * m_H);
-            auto cs_sqr = cs0_sqr * (1. + (5.0/3.0) * sycl::pow(block_rho_max/rho_c,2./3.));
+            //
+            auto cs0_sqr = (kb * T_0) / (mu * m_H);
+            auto cs_sqr  = cs0_sqr * (1. + (5.0 / 3.0) * sycl::pow(block_rho_max / rho_c, 2. / 3.));
 
-
-            Tscal block_min_jeans_length = sycl::sqrt(shamunits::pi<Tscal> * cs_sqr / ( N_J * N_J *  ctes.G() * block_rho_max));
+            Tscal block_min_jeans_length = sycl::sqrt(
+                shamunits::pi<Tscal> * cs_sqr / (N_J * N_J * ctes.G() * block_rho_max));
 
             should_refine   = false;
             should_derefine = false;

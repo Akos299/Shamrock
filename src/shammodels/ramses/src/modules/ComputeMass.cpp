@@ -64,6 +64,9 @@ namespace shammodels::basegodunov::modules {
 
     template<class Tvec, class TgridVec>
     void NodeComputeMass<Tvec, TgridVec>::_impl_evaluate_internal() {
+
+        logger::raw_ln("ComputeMass \n\n");
+
         auto edges = get_edges();
 
         edges.spans_block_cell_sizes.check_sizes(edges.sizes.indexes);

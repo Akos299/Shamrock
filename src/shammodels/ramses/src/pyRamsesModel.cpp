@@ -164,10 +164,21 @@ namespace shammodels::basegodunov {
                     return self.set_alphas_static(alpha_values);
                 })
             .def(
+                "set_grains_intrinsic_density_values",
+                [](TConfig &self, f32 rho_particle) {
+                    return self.set_intrinsic_density(rho_particle);
+                })
+            .def(
+                "set_grains_sizes_values",
+                [](TConfig &self, f32 grains_size_values) {
+                    return self.set_grains_sizes(grains_size_values);
+                })
+            .def(
                 "set_drag_mode_no_drag",
                 [](TConfig &self) {
-                    self.drag_config.drag_solver_config        = NoDrag;
-                    self.drag_config.enable_frictional_heating = false;
+                    self.drag_config.drag_solver_config           = NoDrag;
+                    self.drag_config.enable_frictional_heating    = false;
+                    self.drag_config.compute_epstein_stoping_time = false;
                 })
             .def(
                 "set_drag_mode_irk1",

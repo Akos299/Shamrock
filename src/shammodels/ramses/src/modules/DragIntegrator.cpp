@@ -195,6 +195,7 @@ void shammodels::basegodunov::modules::DragIntegrator<Tvec, TgridVec>::enable_ir
     const u32 ndust = solver_config.dust_config.ndust;
     // alphas are dust collision rates
     auto alphas_vector = solver_config.drag_config.alphas;
+
     std::vector<Tscal> inv_dt_alphas(ndust);
     bool enable_frictional_heating = solver_config.drag_config.enable_frictional_heating;
     u32 friction_control           = (enable_frictional_heating == false) ? 1 : 0;

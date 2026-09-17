@@ -55,9 +55,14 @@ namespace shammodels::basegodunov::modules {
             const shamrock::solvergraph::IFieldSpan<Tvec> &spans_dt_rhov_old;
             const shamrock::solvergraph::IFieldSpan<Tscal> &spans_dt_rhoe_old;
             const shamrock::solvergraph::ScalarEdge<Tscal> &dt_over2;
+            const shamrock::solvergraph::IFieldSpan<Tscal> &spans_dt_rho_old_d;
+            const shamrock::solvergraph::IFieldSpan<Tscal> &spans_rho_next_d;
+            const shamrock::solvergraph::IFieldSpan<Tvec> &spans_rhov_old_d;
+            const shamrock::solvergraph::IFieldSpan<Tvec> &spans_dt_rhov_old_d;
 
             shamrock::solvergraph::IFieldSpan<Tvec> &spans_rhov_next;
             shamrock::solvergraph::IFieldSpan<Tscal> &spans_rhoe_next;
+            shamrock::solvergraph::IFieldSpan<Tvec> &spans_rhov_next_d;
         };
 
         inline void set_edges(
@@ -71,8 +76,14 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tvec>> spans_dt_rhov_old,
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_dt_rhoe_old,
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> dt_over2,
+            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_dt_rho_old_d,
+            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_rho_next_d,
+            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tvec>> spans_rhov_old_d,
+            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tvec>> spans_dt_rhov_old_d,
+
             std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tvec>> spans_rhov_next,
-            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_rhoe_next) {
+            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tscal>> spans_rhoe_next,
+            std::shared_ptr<shamrock::solvergraph::IFieldSpan<Tvec>> spans_rhov_next_d) {
 
             __internal_set_ro_edges(
                 {sizes,
@@ -84,9 +95,13 @@ namespace shammodels::basegodunov::modules {
                  spans_phi_g_next,
                  spans_dt_rhov_old,
                  spans_dt_rhoe_old,
-                 dt_over2});
+                 dt_over2,
+                 spans_dt_rho_old_d,
+                 spans_rho_next_d,
+                 spans_rhov_old_d,
+                 spans_dt_rhov_old_d});
 
-            __internal_set_rw_edges({spans_rhov_next, spans_rhoe_next});
+            __internal_set_rw_edges({spans_rhov_next, spans_rhoe_next, spans_rhov_next_d});
         }
 
         inline Edges get_edges() {
@@ -101,9 +116,15 @@ namespace shammodels::basegodunov::modules {
                 get_ro_edge<shamrock::solvergraph::IFieldSpan<Tvec>>(7),
                 get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(8),
                 get_ro_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(9),
+                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(10),
+                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(11),
+                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tvec>>(12),
+                get_ro_edge<shamrock::solvergraph::IFieldSpan<Tvec>>(13),
 
                 get_rw_edge<shamrock::solvergraph::IFieldSpan<Tvec>>(0),
-                get_rw_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(1)};
+                get_rw_edge<shamrock::solvergraph::IFieldSpan<Tscal>>(1),
+                get_rw_edge<shamrock::solvergraph::IFieldSpan<Tvec>>(2),
+            };
         }
 
         void _impl_evaluate_internal();

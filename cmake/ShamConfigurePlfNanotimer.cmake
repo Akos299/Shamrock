@@ -12,7 +12,7 @@ message("   ---- plf_nanotimer section ----")
 ###############################################################################
 
 _check_git_submodule_cloned(
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/plf_nanotimer 55e0fcb135ec8db874a0656f94d1f1780d7c75a7
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/plf_nanotimer 84f93c76df71500689835897e8ad119c1aeb5e68
 )
 
 include_directories(external/plf_nanotimer)

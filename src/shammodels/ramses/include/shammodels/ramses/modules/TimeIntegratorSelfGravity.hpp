@@ -47,6 +47,9 @@ namespace shammodels::basegodunov::modules {
             : context(context), solver_config(solver_config), storage(storage) {}
 
         void forward_euler(Tscal dt);
+        void involve_with_no_src(Tscal dt);
+        void enable_irk1_drag_integrator(Tscal dt);
+        void enable_expo_drag_integrator(Tscal dt);
 
         private:
         inline PatchScheduler &scheduler() { return shambase::get_check_ref(context.sched); }

@@ -12,7 +12,7 @@ message("   ---- MDSPAN section ----")
 ###############################################################################
 
 _check_git_submodule_cloned(
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/mdspan 414a5dccf5c775b2eecc13d408b256e94f23d1d2
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/mdspan 8989f70749e28f337e6f7aa210db88659dba6f2f
 )
 
 include_directories(external/mdspan/include)

@@ -25,6 +25,9 @@ namespace shammodels::basegodunov::modules {
 
     template<class T>
     void NodeComputeSumOverV<T>::_impl_evaluate_internal() {
+
+        // logger::raw_ln("ComputeSumOverV \n\n");
+
         auto edges = get_edges();
 
         edges.spans_field.check_sizes(edges.sizes.indexes);

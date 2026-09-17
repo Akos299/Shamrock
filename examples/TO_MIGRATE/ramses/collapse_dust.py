@@ -41,6 +41,11 @@ rho0 = 1.38e-18 * 1e3  # [g/cm^3 -> kg/m^3]
 M0 = get_mass(R0, rho0)  # [kg]
 mu = 2.3  # molecular gas
 
+epsilon_dust = 0.00990099  # dust ratio
+rhod0 = epsilon_dust / (1.0 - epsilon_dust) * rho0
+s_grain_1 = 100 * 1e-6  # [micron]
+rho_grain_1 = 3 * 1e3  # [g/cm^3 -> kg/m^3]
+
 
 print(f"proton-mass = {m_H} \n")
 E_th0 = (3.0 * M0 * kb * T0) / (2 * mu * m_H)  # [J]
@@ -50,6 +55,10 @@ alpha0 = E_th0 / np.abs(E_grav0)
 t_ff = np.sqrt((3.0 * np.pi) / (32.0 * G * rho0))  # [s]
 cs_sqr = (kb * T0) / (mu * m_H)
 lamb_J = np.sqrt((cs_sqr * np.pi) / (G * rho0))  # [m]
+print(f"rho_g initial = {rho0}\n")
+print(f"rho_d initial = {rhod0}\n")
+print(f"Sgrains = {s_grain_1}\n")
+print(f"Rhograins = {rho_grain_1}\n")
 print(f"kb = {kb}\n")
 print(f"G value from set-up = {G}\n")
 print(f"Jeans length = {lamb_J}\n")
@@ -81,10 +90,10 @@ def run_sim(beta=0.04, A=0.1, with_rotation=False, with_fragmentation=False):
     multy = 1
     multz = 1
 
-    max_amr_lev = 16
+    max_amr_lev = 18
     sz = 2 << max_amr_lev
 
-    base = 64
+    base = 32
 
     cfg = model.gen_default_config()
     scale_fact = L0 / (sz * base * multx)
@@ -92,8 +101,14 @@ def run_sim(beta=0.04, A=0.1, with_rotation=False, with_fragmentation=False):
 
     cfg.set_Csafe(0.3)
     cfg.set_eos_gamma(gamma)
+    cfg.set_dust_mode_hb(1)
+    cfg.set_drag_mode_irk1(True)
     cfg.set_slope_lim_minmod()
     cfg.set_face_time_interpolation(True)
+
+    cfg.set_alpha_values(float(1.0 / 0.1))  # ts = 0.1
+    cfg.set_grains_intrinsic_density_values(rho_grain_1)
+    cfg.set_grains_sizes_values(s_grain_1)
     ########
 
     cfg.set_gravity_mode_cg()
@@ -161,9 +176,43 @@ def run_sim(beta=0.04, A=0.1, with_rotation=False, with_fragmentation=False):
         Eint = P / (gamma - 1.0)
         return Ekin + Eint
 
+    ## Dust map
+    ### Gas maps
+    def rho_d_map(rmin, rmax) -> float:
+
+        x, y, z = cell_center(rmin, rmax)
+        r = np.sqrt(x**2 + y**2 + z**2)
+
+        rho_ret = rhod0 / 100
+
+        if r < R0:
+            rho_ret = rhod0
+            # if(with_fragmentation):
+            #     phi = np.arctan2(y,x)
+            #     rho_ret *= (1.0 + A * np.cos(2.0*phi))
+
+        return rho_ret
+
+    def rhovel_d_map(rmin, rmax):
+
+        x, y, z = cell_center(rmin, rmax)
+        r = np.sqrt(x**2 + y**2 + z**2)
+        rho = rho_d_map(rmin, rmax)
+
+        # if(with_rotation and r< R0):
+        #     vx = -omega_0 * y
+        #     vy = omega_0 * x
+        #     vz = 0.0
+
+        #     return (rho * vx , rho* vy, rho*vz)
+
+        return (0.0, 0.0, 0.0)
+
     model.set_field_value_lambda_f64("rho", rho_map)
     model.set_field_value_lambda_f64("rhoetot", rhoe_map)
     model.set_field_value_lambda_f64_3("rhovel", rhovel_map)
+    model.set_field_value_lambda_f64("rho_dust", rho_map, 0)
+    model.set_field_value_lambda_f64_3("rhovel_dust", rhovel_d_map, 0)
 
     tmax = 1.5 * t_ff
     t = 0

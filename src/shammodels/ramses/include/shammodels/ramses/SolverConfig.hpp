@@ -48,6 +48,9 @@ namespace shammodels::basegodunov {
     struct DragConfig {
         DragSolverMode drag_solver_config = NoDrag;
         std::vector<f64> alphas;
+        std::vector<f64> intrinsic_density;
+        std::vector<f64> grains_sizes;
+        bool compute_epstein_stoping_time = true;
         bool enable_frictional_heating
             = false; // 0 to turn off and 1 when all dissipation is deposited to the gas
     };
@@ -207,6 +210,18 @@ struct shammodels::basegodunov::SolverConfig {
     inline void set_alphas_static(f32 alpha_values) {
         StackEntry stack_lock{};
         drag_config.alphas.push_back(alpha_values);
+    }
+
+    // get intinsinc densities
+    inline void set_intrinsic_density(f32 rho_p_value) {
+        StackEntry stack_lock{};
+        drag_config.intrinsic_density.push_back(rho_p_value);
+    }
+
+    // get grains sizes
+    inline void set_grains_sizes(f32 grains_sizes_values) {
+        StackEntry stack_lock{};
+        drag_config.grains_sizes.push_back(grains_sizes_values);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////////

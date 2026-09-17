@@ -45,7 +45,9 @@ namespace {
                 auto &cell_sizes_span = edges.spans_block_cell_sizes.get_spans().get(id);
                 auto &phi_span        = edges.spans_phi.get_spans().get(id);
                 auto &rho_span        = edges.spans_rho.get_spans().get(id);
+                auto &rho_d_span      = edges.spans_rho_d.get_spans().get(id);
                 auto &mean_rho        = edges.mean_rho.value;
+                auto &mean_rho_d      = edges.mean_rho_d.value;
                 auto &phi_res_span    = edges.spans_phi_res.get_spans().get(id);
                 auto &phi_p_span      = edges.spans_phi_p.get_spans().get(id);
                 auto &rhs_span        = edges.spans_rhs.get_spans().get(id);
@@ -69,6 +71,7 @@ namespace {
                 auto cell_sizes = cell_sizes_span.get_read_access(depends_list);
                 auto phi        = phi_span.get_read_access(depends_list);
                 auto rho        = rho_span.get_read_access(depends_list);
+                auto rho_d      = rho_d_span.get_read_access(depends_list);
                 auto phi_res    = phi_res_span.get_write_access(depends_list);
                 auto phi_p      = phi_p_span.get_write_access(depends_list);
                 auto rhs        = rhs_span.get_write_access(depends_list);
@@ -92,6 +95,7 @@ namespace {
                         Tscal delta_cell         = cell_sizes[block_id];
 
                         auto jac_weight = shammodels::basegodunov::JacobiWeight<Tscal>{Tscal(1.0)};
+                        auto no_jac_weight = shammodels::basegodunov::NoJacobiWeight{};
 
                         auto Aphi = shammodels::basegodunov::laplacian_7pt_2<Tscal, Tvec>(
                             cell_sizes,
@@ -103,14 +107,19 @@ namespace {
                             graph_iter_ym,
                             graph_iter_zp,
                             graph_iter_zm,
-                            // shammodels::basegodunov::NoJacobiWeight{},
+                            // no_jac_weight,
                             jac_weight,
                             [=](u32 id) {
                                 return phi[id];
                             });
 
                         auto dV    = delta_cell * delta_cell * delta_cell;
-                        auto b_rhs = -fourPiG * (rho[cell_global_id] - mean_rho) * dV;
+                        auto b_rhs = -fourPiG
+                                     * (rho[cell_global_id] + rho_d[cell_global_id] - mean_rho
+                                        - mean_rho_d)
+                                     * dV;
+
+                        // auto b_rhs = -fourPiG * (rho[cell_global_id]- mean_rho) * dV;
 
                         auto res                = b_rhs - Aphi;
                         phi_res[cell_global_id] = res;
@@ -119,8 +128,8 @@ namespace {
                         phi_p[cell_global_id]   = res / jac_weight.value;
 
                         // if (jac_weight.value != 6.0 * delta_cell)
-                        //     logger::raw_ln("\n computed: \t ",jac_weight.value, "\t ", "expected:
-                        //     \t", 6.0 * delta_cell);
+                        //     logger::raw_ln("\n computed: \t ",jac_weight.value, "\t ",
+                        //     "expected\t", 6.0 * delta_cell);
                     });
                 });
 
@@ -131,6 +140,7 @@ namespace {
                 phi_p_span.complete_event_state(e);
                 rhs_span.complete_event_state(e);
                 phi_z_span.complete_event_state(e);
+                rho_d_span.complete_event_state(e);
 
                 graph_neigh_xp.complete_event_state(e);
                 graph_neigh_xm.complete_event_state(e);
@@ -147,6 +157,8 @@ namespace shammodels::basegodunov::modules {
     template<class Tvec, class TgridVec>
     void CGInit<Tvec, TgridVec>::_impl_evaluate_internal() {
         StackEntry stack_loc{};
+
+        logger::raw_ln("NodeCGInit \n\n");
         auto edges = get_edges();
 
         edges.spans_block_cell_sizes.check_sizes(edges.sizes.indexes);
@@ -156,6 +168,7 @@ namespace shammodels::basegodunov::modules {
         edges.spans_phi_p.check_sizes(edges.sizes.indexes);
         edges.spans_rhs.check_sizes(edges.sizes.indexes);
         edges.spans_phi_z.check_sizes(edges.sizes.indexes);
+        edges.spans_rho_d.check_sizes(edges.sizes.indexes);
 
         _Kernel<Tvec, TgridVec>::kernel(edges, block_size, fourPiG);
     }
@@ -168,6 +181,7 @@ namespace shammodels::basegodunov::modules {
         std::string span_phi               = get_ro_edge_base(3).get_tex_symbol();
         std::string span_rho               = get_ro_edge_base(4).get_tex_symbol();
         std::string mean_rho               = get_ro_edge_base(5).get_tex_symbol();
+        std::string span_rho_d             = get_ro_edge_base(6).get_tex_symbol();
         std::string span_phi_res           = get_rw_edge_base(0).get_tex_symbol();
         std::string span_phi_p             = get_rw_edge_base(1).get_tex_symbol();
 

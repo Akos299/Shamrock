@@ -159,6 +159,8 @@ namespace shammodels::basegodunov::modules {
             const shamrock::solvergraph::ScalarEdge<Tscal> &mean_rho;
             const shamrock::solvergraph::DDSharedBuffers<u32> &idx_in_ghost;
             const shamrock::solvergraph::RankGetter &rank_owner;
+            const shamrock::solvergraph::IFieldRefs<Tscal> &spans_rho_d;
+            const shamrock::solvergraph::ScalarEdge<Tscal> &mean_rho_d;
             shamrock::solvergraph::IFieldRefs<Tscal> &spans_phi;
             shamrock::solvergraph::Field<Tscal> &spans_phi_res;
             shamrock::solvergraph::Field<Tscal> &spans_phi_p;
@@ -187,6 +189,8 @@ namespace shammodels::basegodunov::modules {
             std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> mean_rho,
             std::shared_ptr<shamrock::solvergraph::DDSharedBuffers<u32>> idx_in_ghost,
             std::shared_ptr<shamrock::solvergraph::RankGetter> rank_owner,
+            std::shared_ptr<shamrock::solvergraph::IFieldRefs<Tscal>> spans_rho_d,
+            std::shared_ptr<shamrock::solvergraph::ScalarEdge<Tscal>> mean_rho_d,
             std::shared_ptr<shamrock::solvergraph::IFieldRefs<Tscal>> spans_phi,
             std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_res,
             std::shared_ptr<shamrock::solvergraph::Field<Tscal>> spans_phi_p,
@@ -212,7 +216,9 @@ namespace shammodels::basegodunov::modules {
                  spans_rho,
                  mean_rho,
                  idx_in_ghost,
-                 rank_owner});
+                 rank_owner,
+                 spans_rho_d,
+                 mean_rho_d});
 
             __internal_set_rw_edges({
                 spans_phi,
@@ -242,6 +248,8 @@ namespace shammodels::basegodunov::modules {
                 spans_phi,
                 spans_rho,
                 mean_rho,
+                spans_rho_d,
+                mean_rho_d,
                 spans_phi_res,
                 spans_phi_p,
                 spans_rhs,
@@ -319,6 +327,8 @@ namespace shammodels::basegodunov::modules {
                 get_ro_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(5),
                 get_ro_edge<shamrock::solvergraph::DDSharedBuffers<u32>>(6),
                 get_ro_edge<shamrock::solvergraph::RankGetter>(7),
+                get_ro_edge<shamrock::solvergraph::IFieldRefs<Tscal>>(8),
+                get_ro_edge<shamrock::solvergraph::ScalarEdge<Tscal>>(9),
                 get_rw_edge<shamrock::solvergraph::IFieldRefs<Tscal>>(0),
                 get_rw_edge<shamrock::solvergraph::Field<Tscal>>(1),
                 get_rw_edge<shamrock::solvergraph::Field<Tscal>>(2),

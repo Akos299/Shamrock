@@ -28,6 +28,7 @@ namespace shammodels::basegodunov::modules {
     template<class Tvec, class TgridVec>
     void NodeCGLoop<Tvec, TgridVec>::_impl_evaluate_internal() {
         StackEntry stack_loc{};
+
         auto edges = get_edges();
 
         auto r_0 = 1.;
@@ -172,6 +173,8 @@ namespace shammodels::basegodunov::modules {
                 node_replace_gz_phi.evaluate();
             }
         }
+
+        logger::raw_ln(" NodeCGLoop \n\n");
     }
 
 } // namespace shammodels::basegodunov::modules
