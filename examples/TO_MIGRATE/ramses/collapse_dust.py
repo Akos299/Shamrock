@@ -226,12 +226,12 @@ def run_sim(beta=0.04, A=0.1, with_rotation=False, with_fragmentation=False):
         dt = next_dt
 
         if i % freq == 0:
-            model.dump_vtk(f"rotational_collapse_frag_Lmin_7_{t / t_ff:5f}.vtk")
+            model.dump_vtk(f"dusty_rot_col_frag_Lmin_7_{t / t_ff:5f}.vtk")
 
         if tmax < t + next_dt:
             dt = tmax - t
         if t == tmax:
-            model.dump_vtk(f"rotational_collapse_frag_Lmin_7_{t / t_ff:5f}.vtk")
+            model.dump_vtk(f"dusty_rot_col_frag_Lmin_7_{t / t_ff:5f}.vtk")
             break
 
 
