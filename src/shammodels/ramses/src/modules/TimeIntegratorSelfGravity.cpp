@@ -39,14 +39,11 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
     // load layout info
     PatchDataLayerLayout &pdl = scheduler().pdl_old();
 
-    const u32 irho      = pdl.get_field_idx<Tscal>("rho");
-    const u32 irhoetot  = pdl.get_field_idx<Tscal>("rhoetot");
-    const u32 irhovel   = pdl.get_field_idx<Tvec>("rhovel");
-    const u32 iphi      = pdl.get_field_idx<Tscal>("phi_old");
-    const u32 iphi_new  = pdl.get_field_idx<Tscal>("phi");
-    const u32 irho_d    = pdl.get_field_idx<Tscal>("rho_dust");
-    const u32 irhovel_d = pdl.get_field_idx<Tvec>("rhovel_dust");
-
+    const u32 irho     = pdl.get_field_idx<Tscal>("rho");
+    const u32 irhoetot = pdl.get_field_idx<Tscal>("rhoetot");
+    const u32 irhovel  = pdl.get_field_idx<Tvec>("rhovel");
+    const u32 iphi     = pdl.get_field_idx<Tscal>("phi_old");
+    const u32 iphi_new = pdl.get_field_idx<Tscal>("phi");
     {
 
         // auto &rho_next  = shambase::get_check_ref(storage.refs_rho_next);
@@ -82,14 +79,12 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
             auto acc_rho_next_patch  = rho_next_patch.get_read_access(depends_list);
             auto acc_rhov_next_patch = rhov_next_patch.get_read_access(depends_list);
             auto acc_rhoe_next_patch = rhoe_next_patch.get_write_access(depends_list);
+            auto rho_old             = buf_rho.get_write_access(depends_list);
+            auto rhov_old            = buf_rhov.get_write_access(depends_list);
+            auto rhoe_old            = buf_rhoe.get_write_access(depends_list);
 
-            auto rho_old  = buf_rho.get_write_access(depends_list);
-            auto rhov_old = buf_rhov.get_write_access(depends_list);
-            auto rhoe_old = buf_rhoe.get_write_access(depends_list);
-
-            auto acc_phi_new = phi_old_next_patch.get_read_access(depends_list);
-            auto acc_phi_old = phi_old.get_write_access(depends_list);
-
+            auto acc_phi_new      = phi_old_next_patch.get_read_access(depends_list);
+            auto acc_phi_old      = phi_old.get_write_access(depends_list);
             auto acc_phi_next_new = phi_new_next_patch.get_read_access(depends_list);
             auto acc_phi_next_old = phi_new.get_write_access(depends_list);
 
@@ -131,17 +126,52 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
             rho_next_patch.complete_event_state(e);
             rhov_next_patch.complete_event_state(e);
             rhoe_next_patch.complete_event_state(e);
-
             buf_rho.complete_event_state(e);
             buf_rhov.complete_event_state(e);
             buf_rhoe.complete_event_state(e);
 
             phi_old_next_patch.complete_event_state(e);
             phi_old.complete_event_state(e);
-
             phi_new_next_patch.complete_event_state(e);
             phi_new.complete_event_state(e);
         });
+    }
+
+    if (solver_config.is_dust_on()) {
+        const u32 irho_d    = pdl.get_field_idx<Tscal>("rho_dust");
+        const u32 irhovel_d = pdl.get_field_idx<Tvec>("rhovel_dust");
+        auto &rho_next_d    = shambase::get_check_ref(storage.refs_rho_dust);
+        auto &rhov_next_d   = shambase::get_check_ref(storage.refs_rhov_next_d);
+        scheduler().for_each_patchdata_nonempty(
+            [&](const shamrock::patch::Patch p, shamrock::patch::PatchDataLayer &pdat) {
+                shamlog_debug_ln(
+                    "[AMR Flux]", "forward euler integration-self-gravity patch dust", p.id_patch);
+
+                sham::DeviceQueue &q = shamsys::instance::get_compute_scheduler().get_queue();
+                sham::DeviceBuffer<Tscal> &rho_next_patch_d = rho_next_d.get(p.id_patch).get_buf();
+                sham::DeviceBuffer<Tvec> &rhov_next_patch_d = rhov_next_d.get_buf(p.id_patch);
+
+                u32 cell_count                       = pdat.get_obj_cnt() * AMRBlock::block_size;
+                u32 ndust                            = solver_config.dust_config.ndust;
+                sham::DeviceBuffer<Tscal> &buf_rho_d = pdat.get_field_buf_ref<Tscal>(irho_d);
+                sham::DeviceBuffer<Tvec> &buf_rhov_d = pdat.get_field_buf_ref<Tvec>(irhovel_d);
+
+                sham::EventList depends_list;
+                auto acc_rho_next_patch_d  = rho_next_patch_d.get_read_access(depends_list);
+                auto acc_rhov_next_patch_d = rhov_next_patch_d.get_read_access(depends_list);
+                auto rho_old_d             = buf_rho_d.get_write_access(depends_list);
+                auto rhov_old_d            = buf_rhov_d.get_write_access(depends_list);
+                auto e                     = q.submit(depends_list, [&](sycl::handler &cgh) {
+                    shambase::parallel_for(cgh, ndust * cell_count, "saveback", [=](u32 id_a) {
+                        rho_old_d[id_a]  = acc_rho_next_patch_d[id_a];
+                        rhov_old_d[id_a] = acc_rhov_next_patch_d[id_a];
+                    });
+                });
+                buf_rho_d.complete_event_state(e);
+                buf_rhov_d.complete_event_state(e);
+                rho_next_patch_d.complete_event_state(e);
+                rhov_next_patch_d.complete_event_state(e);
+            });
     }
 }
 
@@ -172,10 +202,10 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
     const u32 irhovel_d = pdl.get_field_idx<Tvec>("rhovel_dust");
 
     const u32 ndust = solver_config.dust_config.ndust;
-    // alphas are dust collision rates
-    auto alphas_vector = solver_config.drag_config.alphas;
-    auto internal_rho  = solver_config.drag_config.intrinsic_density;
-    auto grains_size   = solver_config.drag_config.grains_sizes;
+    // // alphas are dust collision rates
+    // auto alphas_vector = solver_config.drag_config.alphas;
+    auto internal_rho = solver_config.drag_config.intrinsic_density;
+    auto grains_size  = solver_config.drag_config.grains_sizes;
     std::vector<Tscal> inv_dt_alphas(ndust);
     bool enable_frictional_heating    = solver_config.drag_config.enable_frictional_heating;
     bool compute_epstein_stoping_time = solver_config.drag_config.compute_epstein_stoping_time;
@@ -209,13 +239,14 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
         sham::DeviceBuffer<Tscal> &rho_d_old = pdat.get_field_buf_ref<Tscal>(irho_d);
         sham::DeviceBuffer<Tvec> &rhov_d_old = pdat.get_field_buf_ref<Tvec>(irhovel_d);
 
-        sham::DeviceBuffer<Tscal> alphas_buf(ndust, shamsys::instance::get_compute_scheduler_ptr());
+        // sham::DeviceBuffer<Tscal> alphas_buf(ndust,
+        // shamsys::instance::get_compute_scheduler_ptr());
         sham::DeviceBuffer<Tscal> internal_rho_buf(
             ndust, shamsys::instance::get_compute_scheduler_ptr());
         sham::DeviceBuffer<Tscal> grains_size_buf(
             ndust, shamsys::instance::get_compute_scheduler_ptr());
 
-        alphas_buf.copy_from_stdvec(alphas_vector);
+        // alphas_buf.copy_from_stdvec(alphas_vector);
         internal_rho_buf.copy_from_stdvec(internal_rho);
         grains_size_buf.copy_from_stdvec(grains_size);
 
@@ -232,17 +263,14 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
         auto acc_rho_d_old  = rho_d_old.get_write_access(depend_list);
         auto acc_rhov_d_old = rhov_d_old.get_write_access(depend_list);
 
-        auto acc_alphas       = alphas_buf.get_read_access(depend_list);
+        // auto acc_alphas       = alphas_buf.get_read_access(depend_list);
         auto acc_internal_rho = internal_rho_buf.get_read_access(depend_list);
         auto acc_grains_size  = grains_size_buf.get_read_access(depend_list);
 
         auto e = q.submit(depend_list, [&, dt, ndust, friction_control](sycl::handler &cgh) {
             shambase::parallel_for(cgh, cell_count, "add_drag [irk1] SG", [=](u32 id_a) {
                 Tvec tmp_mom_1 = acc_rhov_new_patch[id_a];
-                // logger::raw("tmp_1= \t", tmp_mom_1[0], "tmp_2= \t", tmp_mom_1[1], "tmp_3= \t",
-                // tmp_mom_1[2], "\n");
-
-                Tscal tmp_rho = acc_rho_old[id_a];
+                Tscal tmp_rho  = acc_rho_old[id_a];
 
                 auto conststate = shammath::ConsState<Tvec>{
                     acc_rho_new_patch[id_a], acc_rhoe_new_patch[id_a], acc_rhov_new_patch[id_a]};
@@ -259,8 +287,7 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
                         = sycl::sqrt((shamunits::pi<Tscal> * solver_config.eos_gamma) / 8.0)
                           * (acc_internal_rho[i] * acc_grains_size[i])
                           / (acc_rho_new_patch[id_a] * cs);
-                    const Tscal _alpha = 1. / ts_i;
-                    // logger::raw_ln("_alppha \t", 1. / ts_i, "\n\n");
+                    const Tscal _alpha        = 1. / ts_i;
                     const Tscal inv_dt_alphas = 1.0 / (1.0 + _alpha * dt);
                     const Tscal dt_alphas     = dt * _alpha;
 
@@ -318,9 +345,6 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
                 Eg += acc_rhoe_new_patch[id_a] + (1 - friction_control) * work_drag
                       - friction_control * dissipation;
 
-                // logger::raw("tmp_1= \t", tmp_vel[0], "tmp_2= \t", tmp_vel[1], "tmp_3= \t",
-                // tmp_vel[2], "\n");
-
                 acc_rhov_old[id_a] = tmp_vel * acc_rho_old[id_a];
                 acc_rhoe_old[id_a] = Eg;
                 acc_rho_old[id_a]  = acc_rho_new_patch[id_a];
@@ -356,7 +380,7 @@ void shammodels::basegodunov::modules::TimeIntegratorSelfGravity<Tvec, TgridVec>
         rho_d_old.complete_event_state(e);
         rhov_d_old.complete_event_state(e);
 
-        alphas_buf.complete_event_state(e);
+        // alphas_buf.complete_event_state(e);
         internal_rho_buf.complete_event_state(e);
         grains_size_buf.complete_event_state(e);
     });

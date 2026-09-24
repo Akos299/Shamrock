@@ -45,7 +45,9 @@
 #include "shammodels/ramses/modules/NodeCGLoop.hpp"
 #include "shammodels/ramses/modules/NodeComputeFlux.hpp"
 #include "shammodels/ramses/modules/NodeGetNextConsVar.hpp"
+#include "shammodels/ramses/modules/NodeGetNextConsVarDust.hpp"
 #include "shammodels/ramses/modules/NodeNextRho.hpp"
+#include "shammodels/ramses/modules/NodeNextRhoDust.hpp"
 #include "shammodels/ramses/modules/NodeSelfGravityAcceleration.hpp"
 #include "shammodels/ramses/modules/SlopeLimitedGradient.hpp"
 #include "shammodels/ramses/modules/SumFluxDust.hpp"
@@ -407,9 +409,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
 
     storage.rho_primitive = std::make_shared<shamrock::solvergraph::Field<Tscal>>(
         AMRBlock::block_size, "rho-prim", "rho-prim");
-
-    // storage.rho_primitive_2 = std::make_shared<shamrock::solvergraph::Field<Tscal>>(
-    //     AMRBlock::block_size, "rho-prim_2", "rho-prim_2");
 
     if (solver_config.is_dust_on()) {
         u32 ndust = solver_config.dust_config.ndust;
@@ -1163,13 +1162,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
             }
         }
 
-        // if(solver_config.is_dust_on())
-        // {
-        //      shambase::get_check_ref(storage.rho_mean).value =
-        //      shambase::get_check_ref(storage.rho_dust_mean).value +
-        //      shambase::get_check_ref(storage.rho_mean).value ;
-        // }
-
         /** solve Poisson equation for the new gravitational potential **/
         if (solver_config.gravity_config.gravity_mode == CG) {
             modules::NodeCGLoop<Tvec, TgridVec> node_cg_old{
@@ -1283,7 +1275,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.refs_rho,
                 storage.refs_rhov,
                 storage.refs_rhoe,
-                // storage.rho_primitive,
                 storage.vel,
                 storage.press);
 
@@ -1778,7 +1769,8 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 std::make_shared<decltype(node_rho_next)>(std::move(node_rho_next)));
 
             if (solver_config.is_dust_on()) {
-                modules::NodeNextRho<Tvec> node_rho_next_dust{AMRBlock::block_size};
+                modules::NodeNextRhoDust<Tvec> node_rho_next_dust{
+                    AMRBlock::block_size, solver_config.dust_config.ndust};
                 node_rho_next_dust.set_edges(
                     storage.block_counts,
                     storage.dtrho_dust,
@@ -1842,14 +1834,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 shambase::get_check_ref(storage.rho_dust_mean).value = 0;
             }
         }
-        // if(solver_config.is_dust_on())
-        // {
-        //     // logger::raw_ln("\t rho_mean_gas \t = ",
-        //     shambase::get_check_ref(storage.rho_mean).value);
-        //     //  shambase::get_check_ref(storage.rho_mean).value =
-        //     shambase::get_check_ref(storage.rho_dust_mean).value +
-        //     shambase::get_check_ref(storage.rho_mean).value ;
-        // }
 
         /** solve Poisson equation for the new gravitational potential **/
         if (solver_config.gravity_config.gravity_mode == CG) {
@@ -1961,16 +1945,30 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::init_solver_graph() {
                 storage.dtrhov,
                 storage.dtrhoe,
                 storage.dt_over2,
-                storage.dtrho_dust,
-                storage.refs_rho_dust,
-                storage.refs_rhov_dust,
-                storage.dtrhov_dust,
                 storage.refs_rhov_next,
-                storage.refs_rhoe_next,
-                storage.refs_rhov_next_d);
+                storage.refs_rhoe_next);
 
             end_self_gravity_sequences.push_back(
                 std::make_shared<decltype(node_new_cons_var)>(std::move(node_new_cons_var)));
+
+            if (solver_config.is_dust_on()) {
+                modules::NodeGetNextConsVarDust<Tvec> node_new_cons_var_dust{
+                    AMRBlock::block_size, solver_config.dust_config.ndust};
+                node_new_cons_var_dust.set_edges(
+                    storage.block_counts_with_ghost,
+                    storage.dtrho_dust,
+                    storage.refs_rho_dust,
+                    storage.refs_rhov_dust,
+                    storage.dtrhov_dust,
+                    storage.phi_g_old,
+                    storage.phi_g_new,
+                    storage.dt_over2,
+                    storage.refs_rhov_next_d);
+
+                end_self_gravity_sequences.push_back(
+                    std::make_shared<decltype(node_new_cons_var_dust)>(
+                        std::move(node_new_cons_var_dust)));
+            }
         }
 
         shamrock::solvergraph::OperationSequence seq(
@@ -2117,7 +2115,6 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
         dt_integ_self_gravity.forward_euler(dt_input);
 
         if (solver_config.drag_config.drag_solver_config == DragSolverMode::IRK1) {
-
             dt_integ_self_gravity.enable_irk1_drag_integrator(dt_input);
         }
     }
@@ -2153,7 +2150,7 @@ void shammodels::basegodunov::Solver<Tvec, TgridVec>::evolve_once() {
      * access them.
      */
 
-    // if (dt_input > 0)
+    if (dt_input > 0)
 
     {
         logger::raw_ln("For ref \n\n");

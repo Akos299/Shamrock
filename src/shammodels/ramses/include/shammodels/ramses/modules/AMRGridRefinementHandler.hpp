@@ -93,11 +93,11 @@ namespace shammodels::basegodunov::modules {
 
         template<class UserAcc>
         bool internal_refine_grid(
-            shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_refine_flags);
+            shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_refine_flags, u32 ndust = 1);
 
         template<class UserAcc>
         bool internal_derefine_grid(
-            shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_derefine_flags);
+            shambase::DistributedData<sham::DeviceBuffer<u32>> &&dd_derefine_flags, u32 ndust = 1);
 
         template<class UserAccCrit, class UserAccSplit, class UserAccMerge>
         void internal_update_refinement();

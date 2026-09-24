@@ -39,14 +39,6 @@ namespace {
                 &spans_rho_next,
             const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tvec>>
                 &spans_rhov_old,
-
-            const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tscal>>
-                &spans_dt_rho_old_d,
-            const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tscal>>
-                &spans_rho_next_d,
-            const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tvec>>
-                &spans_rhov_old_d,
-
             const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tscal>>
                 &spans_rhoe_old,
             const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tvec>>
@@ -57,12 +49,8 @@ namespace {
                 &spans_dt_rhov_old,
             const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tscal>>
                 &spans_dt_rhoe_old,
-            const shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tvec>>
-                &spans_dt_rhov_old_d,
             shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tvec>> &spans_rhov_next,
             shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tscal>> &spans_rhoe_next,
-
-            shambase::DistributedData<shamrock::PatchDataFieldSpanPointer<Tvec>> &spans_rhov_next_d,
             const f64 dt_over_2,
             u32 block_size)
 
@@ -80,20 +68,14 @@ namespace {
                     spans_dt_rho_old,
                     spans_rho_next,
                     spans_rhov_old,
-
-                    spans_dt_rho_old_d,
-                    spans_rho_next_d,
-                    spans_rhov_old_d,
-
                     spans_rhoe_old,
                     spans_phi_g_old,
                     spans_phi_g_next,
                     spans_dt_rhov_old,
                     spans_dt_rhoe_old,
 
-                    spans_dt_rhov_old_d,
                 },
-                sham::DDMultiRef{spans_rhov_next, spans_rhoe_next, spans_rhov_next_d},
+                sham::DDMultiRef{spans_rhov_next, spans_rhoe_next},
                 cell_counts,
                 [dt_over_2](
                     u32 i,
@@ -101,24 +83,15 @@ namespace {
                     const Tscal *__restrict rho_next,
                     const Tvec *__restrict rhov_old,
 
-                    const Tscal *__restrict dt_rho_old_d,
-                    const Tscal *__restrict rho_next_d,
-                    const Tvec *__restrict rhov_old_d,
-
                     const Tscal *__restrict rhoe_old,
                     const Tvec *__restrict phi_g_old,
                     const Tvec *__restrict phi_g_next,
                     const Tvec *__restrict dt_rhov_old,
                     const Tscal *__restrict dt_rhoe_old,
 
-                    const Tvec *__restrict dt_rhov_old_d,
-
                     Tvec *__restrict rhov_new,
-                    Tscal *__restrict rhoe_new,
-                    Tvec *__restrict rhov_new_d) {
+                    Tscal *__restrict rhoe_new) {
                     auto rho_old = rho_next[i] - (2. * dt_over_2) * dt_rho_old[i];
-
-                    auto rho_old_d = rho_next_d[i] - (2. * dt_over_2) * dt_rho_old_d[i];
 
                     // auto rhovec_next = rhov_old[i] + (2. * dt_over_2) * dt_rhov_old[i];
                     // auto rhoe_next   = rhoe_old[i] + (2. * dt_over_2) * dt_rhoe_old[i];
@@ -144,11 +117,6 @@ namespace {
                         = rhov_old[i] + (2. * dt_over_2) * dt_rhov_old[i]
                           + dt_over_2 * (rho_old * phi_g_old[i] + rho_next[i] * phi_g_next[i]);
                     rhov_new[i] = tmp_rhov;
-
-                    rhov_new_d[i]
-                        = rhov_old_d[i] + (2. * dt_over_2) * dt_rhov_old_d[i]
-                          + dt_over_2 * (rho_old_d * phi_g_old[i] + rho_next_d[i] * phi_g_next[i]);
-
                     rhoe_new[i]
                         = rhoe_old[i] + (2. * dt_over_2) * dt_rhoe_old[i]
                           + dt_over_2
@@ -171,43 +139,29 @@ namespace shammodels::basegodunov::modules {
             edges.spans_dt_rho_old.check_sizes(edges.sizes.indexes);
             edges.spans_rho_next.check_sizes(edges.sizes.indexes);
             edges.spans_rhov_old.check_sizes(edges.sizes.indexes);
-
-            edges.spans_dt_rhov_old_d.check_sizes(edges.sizes.indexes);
-            edges.spans_rho_next_d.check_sizes(edges.sizes.indexes);
-            edges.spans_rhov_old_d.check_sizes(edges.sizes.indexes);
-
+            edges.spans_dt_rhoe_old.check_sizes(edges.sizes.indexes);
+            edges.spans_dt_rhov_old.check_sizes(edges.sizes.indexes);
             edges.spans_rhoe_old.check_sizes(edges.sizes.indexes);
 
             edges.spans_phi_g_old.check_sizes(edges.sizes.indexes);
             edges.spans_phi_g_next.check_sizes(edges.sizes.indexes);
 
-            edges.spans_dt_rhoe_old.check_sizes(edges.sizes.indexes);
-            edges.spans_dt_rhov_old.check_sizes(edges.sizes.indexes);
-
-            edges.spans_dt_rhov_old_d.check_sizes(edges.sizes.indexes);
-
             edges.spans_rhov_next.ensure_sizes(edges.sizes.indexes);
             edges.spans_rhoe_next.ensure_sizes(edges.sizes.indexes);
-
-            edges.spans_rhov_next_d.ensure_sizes(edges.sizes.indexes);
 
             KernelNextConsVar<Tvec>::kernel(
                 edges.sizes.indexes,
                 edges.spans_dt_rho_old.get_spans(),
                 edges.spans_rho_next.get_spans(),
                 edges.spans_rhov_old.get_spans(),
-                edges.spans_dt_rho_old_d.get_spans(),
-                edges.spans_rho_next_d.get_spans(),
-                edges.spans_rhov_old_d.get_spans(),
+
                 edges.spans_rhoe_old.get_spans(),
                 edges.spans_phi_g_old.get_spans(),
                 edges.spans_phi_g_next.get_spans(),
                 edges.spans_dt_rhov_old.get_spans(),
                 edges.spans_dt_rhoe_old.get_spans(),
-                edges.spans_dt_rhov_old_d.get_spans(),
                 edges.spans_rhov_next.get_spans(),
                 edges.spans_rhoe_next.get_spans(),
-                edges.spans_rhov_next_d.get_spans(),
                 edges.dt_over2.value,
                 block_size);
         }

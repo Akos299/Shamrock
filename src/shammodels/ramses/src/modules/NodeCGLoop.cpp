@@ -135,21 +135,21 @@ namespace shammodels::basegodunov::modules {
                 /** set <z_{k},r_{k}> = <z_{k+1},r_{k+1}>*/
                 edges.rz_old_values = edges.rz_new_values;
 
-                if (shamcomm::world_rank() == 0) {
+                // if (shamcomm::world_rank() == 0) {
 
-                    logger::raw_ln(
-                        "[PCG] \t k = \t ",
-                        k,
-                        "\t <r_k, r_k> = \t ",
-                        edges.old_values.value,
-                        "\t",
-                        "\t  <r_k,z_k> = \t ",
-                        edges.rz_old_values.value,
-                        "\t",
-                        "\t ||r_k||_2 / ||b_rhs||_2 = \t",
-                        sycl::sqrt(edges.old_values.value / edges.rhs_norm_values.value),
-                        "\t\n\n");
-                }
+                //     logger::raw_ln(
+                //         "[PCG] \t k = \t ",
+                //         k,
+                //         "\t <r_k, r_k> = \t ",
+                //         edges.old_values.value,
+                //         "\t",
+                //         "\t  <r_k,z_k> = \t ",
+                //         edges.rz_old_values.value,
+                //         "\t",
+                //         "\t ||r_k||_2 / ||b_rhs||_2 = \t",
+                //         sycl::sqrt(edges.old_values.value / edges.rhs_norm_values.value),
+                //         "\t\n\n");
+                // }
 
                 /** compute p_{k+1} = z_{k+1} + \beta_{k} p_{k} */
                 new_p_node_precond.evaluate();

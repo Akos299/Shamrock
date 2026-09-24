@@ -62,6 +62,8 @@ set(Sources
     src/modules/NodeLinCombThreeVectors.cpp
     src/modules/NodeOverwrite.cpp
     src/modules/BICGSTABLoop.cpp
+    src/modules/NodeNextRhoDust.cpp
+    src/modules/NodeGetNextConsVarDust.cpp
 )
 
 if(SHAMROCK_USE_SHARED_LIB)
